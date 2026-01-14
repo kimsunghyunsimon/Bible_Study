@@ -1,9 +1,11 @@
 import json
-import re
+import os
+import urllib.request
 
-# 1. 파일 이름 설정
-INPUT_FILE = 'english_refs.json'  # 방금 다운받은 영어 파일
-OUTPUT_FILE = 'bible_refs.json'   # 결과로 나올 한글 파일
+# 1. 파일 설정
+URL = "https://raw.githubusercontent.com/josephilipraja/bible-cross-reference-json/master/cross_references.json"
+INPUT_FILE = 'english_refs.json'
+OUTPUT_FILE = 'bible_refs.json'
 
 # 2. 영어 -> 한글 변환표
 ENG_TO_KOR = {
@@ -24,32 +26,38 @@ ENG_TO_KOR = {
 }
 
 def translate_bible_refs():
+    # === [1단계] 파일 자동 다운로드 ===
+    if not os.path.exists(INPUT_FILE):
+        print(f"📥 '{INPUT_FILE}'이 없어서 인터넷에서 다운로드합니다...")
+        try:
+            urllib.request.urlretrieve(URL, INPUT_FILE)
+            print("✅ 다운로드 성공!")
+        except Exception as e:
+            print(f"❌ 다운로드 실패: {e}")
+            return
+
+    # === [2단계] 번역 시작 ===
     try:
-        print("📂 영어 데이터 읽는 중...")
+        print("📂 데이터 읽는 중...")
         with open(INPUT_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
         new_data = {}
         count = 0
 
-        print("🔄 한글로 변환 시작...")
+        print("🔄 한글로 변환 시작 (시간이 조금 걸립니다)...")
         
-        # 데이터 한 줄씩 꺼내서 변환
         for key, refs in data.items():
-            # key 예시: "Genesis 1:1"
-            # refs 예시: ["John 1:1", "Hebrews 11:3"]
-            
-            # 1. '키' 변환 (Genesis 1:1 -> 창세기 1:1)
+            # 키 변환 ("Genesis 1:1" -> "창세기 1:1")
             found_book = False
             for eng, kor in ENG_TO_KOR.items():
-                if key.startswith(eng + " "): # "Genesis " 로 시작하면
-                    new_key = key.replace(eng, kor, 1) # 창세기 1:1로 변경
+                if key.startswith(eng + " "):
+                    new_key = key.replace(eng, kor, 1)
                     
-                    # 2. '내용' 변환 (John 1:1 -> 요한복음 1:1)
+                    # 내용 변환
                     new_refs = []
                     for r in refs:
                         translated_ref = r
-                        # 참조 구절 안에 있는 영어도 한글로 바꿈
                         for e_book, k_book in ENG_TO_KOR.items():
                             if e_book in translated_ref:
                                 translated_ref = translated_ref.replace(e_book, k_book)
@@ -59,20 +67,16 @@ def translate_bible_refs():
                     found_book = True
                     count += 1
                     break
-            
-            if not found_book:
-                # 매칭되는 책 이름이 없으면 그냥 둠 (디버깅용)
-                pass
-
+        
         # 저장
         with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
             json.dump(new_data, f, ensure_ascii=False, indent=2)
 
-        print(f"✅ 변환 완료! 총 {count}개 구절의 관주를 한글로 바꿨습니다.")
-        print(f"👉 생성된 '{OUTPUT_FILE}' 파일을 GitHub에 업로드하세요.")
+        print(f"✅ 모든 작업 완료! 총 {count}개 구절 변환됨.")
+        print(f"👉 이제 'bible_refs.json' 파일을 GitHub에 업로드하세요.")
 
-    except FileNotFoundError:
-        print(f"❌ 오류: '{INPUT_FILE}'이 없습니다. 파일을 다운로드했는지 확인하세요.")
+    except Exception as e:
+        print(f"❌ 오류 발생: {e}")
 
 if __name__ == "__main__":
     translate_bible_refs()
