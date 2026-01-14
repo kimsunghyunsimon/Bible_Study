@@ -5,7 +5,7 @@ import os
 # 1. 페이지 설정
 st.set_page_config(layout="wide", page_title="Bible Study Tool")
 
-# 스타일 정의
+# 스타일 정의 (화면을 예쁘게 꾸미는 부분)
 st.markdown("""
 <style>
     .verse-box { padding: 10px; border-bottom: 1px solid #eee; font-size: 16px; }
@@ -16,24 +16,24 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 2. 데이터 로드 함수 (성경 & 관주 & 주석)
+# 2. 데이터 로드 함수 (성경 & 관주 & 주석 3가지를 다 읽어옵니다)
 @st.cache_data
 def load_data():
     bible_data = {}
     refs_data = {}
     comm_data = {}
     
-    # 성경 본문
+    # 성경 본문 읽기
     if os.path.exists('bible_data.json'):
         with open('bible_data.json', 'r', encoding='utf-8') as f:
             bible_data = json.load(f)
 
-    # 관주 데이터
+    # 관주 데이터 읽기
     if os.path.exists('bible_refs.json'):
         with open('bible_refs.json', 'r', encoding='utf-8') as f:
             refs_data = json.load(f)
 
-    # [NEW] 주석 데이터
+    # [중요] 주석 데이터 읽기 (새로 추가됨!)
     if os.path.exists('bible_comm.json'):
         with open('bible_comm.json', 'r', encoding='utf-8') as f:
             comm_data = json.load(f)
@@ -46,59 +46,64 @@ st.title("📖 통합 성경 연구 도구")
 st.markdown("---")
 
 if not bible_data:
-    st.error("데이터 파일(bible_data.json)이 없습니다.")
+    st.error("데이터 파일(bible_data.json)이 없습니다. 깃허브에 파일을 올려주세요.")
 else:
-    # 3. 사이드바
+    # 3. 사이드바 (책/장/절 선택 기능)
     with st.sidebar:
         st.header("🔍 성경 찾기")
         
         book_list = list(bible_data.keys())
         selected_book = st.selectbox("성경", book_list)
         
+        # 장 선택 (숫자 순서로 정렬)
         chapter_keys = list(bible_data[selected_book].keys())
         chapter_keys.sort(key=lambda x: int(x))
         selected_chapter = st.selectbox("장", chapter_keys)
         
+        # 절 선택 (숫자 순서로 정렬)
         verses_in_chapter = bible_data[selected_book][selected_chapter]
         verse_keys = list(verses_in_chapter.keys())
         verse_keys.sort(key=lambda x: int(x))
         selected_verse_num = st.selectbox("절", verse_keys)
 
-    # 4. 메인 화면 3단 분할
+    # 4. 메인 화면 3단 분할 (본문 / 관주 / 주석)
     col_text, col_ref, col_comm = st.columns([2, 1, 1])
 
-    # 검색 키 (예: "창세기 1:1")
+    # 검색 키 만들기 (예: "창세기 1:1") -> 이걸로 관주랑 주석을 찾습니다.
     search_key = f"{selected_book} {selected_chapter}:{selected_verse_num}"
 
-    # [1열] 성경 본문
+    # [1열] 성경 본문 표시
     with col_text:
         st.subheader(f"📜 {selected_book} {selected_chapter}장")
         for v_num in verse_keys:
             v_data = verses_in_chapter[v_num]
-            text = v_data['text'] if isinstance(v_data, dict) else v_data # 데이터 형식 호환성 처리
+            # 데이터가 {text: ...} 형태인지 그냥 문자열인지 확인
+            text = v_data['text'] if isinstance(v_data, dict) else v_data 
             
             if v_num == selected_verse_num:
+                # 선택된 절은 파란색 배경으로 강조
                 st.markdown(f"<div id='target' class='verse-selected'>{v_num}. {text}</div>", unsafe_allow_html=True)
             else:
                 st.markdown(f"<div class='verse-box'>{v_num}. {text}</div>", unsafe_allow_html=True)
 
-    # [2열] 관주
+    # [2열] 관주 (References) 표시
     with col_ref:
         st.subheader("🔗 관주 (References)")
         st.caption(f"기준: {search_key}")
         
         found_refs = refs_data.get(search_key, [])
+        
         if found_refs:
             for ref in found_refs:
                 st.markdown(f"<div class='ref-item'>{ref}</div>", unsafe_allow_html=True)
         else:
-            st.info("💡 등록된 관주가 없습니다.")
+            st.info("💡 등록된 관주 데이터가 없습니다.")
 
-    # [3열] 주석 (Commentary) - 업데이트!
+    # [3열] 주석 (Commentary) 표시
     with col_comm:
         st.subheader("📚 주석 (Commentary)")
         
-        # 파일에서 주석 찾기
+        # 주석 파일에서 내용 찾기
         found_comm = comm_data.get(search_key, "")
         
         if found_comm:
@@ -109,4 +114,5 @@ else:
             </div>
             """, unsafe_allow_html=True)
         else:
-            st.warning("이 구절에 대한 주석 데이터가 없습니다.")
+            # 주석이 없으면 노란색 박스로 안내
+            st.warning(f"이 구절({search_key})에 대한 주석이 없습니다.")
