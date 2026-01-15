@@ -1,23 +1,80 @@
-{
-  "창세기 1:1": [
-    "요한복음 1:1 - 태초에 말씀이 계시니라",
-    "시편 33:6 - 여호와의 말씀으로 하늘이 지음이 되었으며",
-    "히브리서 11:3 - 믿음으로 모든 세계가 지어진 줄을 우리가 아나니",
-    "이사야 44:24 - 나는 만물을 지은 여호와라"
-  ],
-  "창세기 1:2": [
-    "예레미야 4:23 - 보라 땅이 혼돈하고 공허하며",
-    "이사야 45:18 - 땅을 헛되이 창조치 아니하시고"
-  ],
-  "창세기 1:3": [
-    "고린도후서 4:6 - 어두운 데서 빛이 비취라 하시던 그 하나님께서",
-    "시편 104:2 - 주께서 옷을 입음 같이 빛을 입으시며"
-  ],
-  "창세기 1:26": [
-    "창세기 5:1 - 하나님이 사람을 창조하실 때에 하나님의 형상대로 지으시되",
-    "고린도전서 11:7 - 남자는 하나님의 형상과 영광이니"
-  ],
-  "창세기 1:27": [
-    "마태복음 19:4 - 사람을 지으신 이가 본래 저희를 남자와 여자로 만드시고"
-  ]
+import json
+import urllib.request
+import ssl
+
+# 1. 파일 이름
+OUTPUT_FILE = 'bible_refs.json'
+
+# 2. 원본 데이터 (여기에 원래 텍스트 없이 주소만 들어있습니다)
+URL = "https://raw.githubusercontent.com/scrollmapper/bible_databases/master/cross_references.json"
+
+# 백업 URL (만약 위 주소가 안 되면 이걸로 교체하세요)
+# URL = "https://raw.githubusercontent.com/bephrem1/bible-cross-reference-json/master/cross_references.json"
+
+# 3. 한글 변환표
+ENG_TO_KOR = {
+    "Genesis": "창세기", "Exodus": "출애굽기", "Leviticus": "레위기", "Numbers": "민수기", "Deuteronomy": "신명기",
+    "Joshua": "여호수아", "Judges": "사사기", "Ruth": "룻기", "1 Samuel": "사무엘상", "2 Samuel": "사무엘하",
+    "1 Kings": "열왕기상", "2 Kings": "열왕기하", "1 Chronicles": "역대상", "2 Chronicles": "역대하", "Ezra": "에스라",
+    "Nehemiah": "느헤미야", "Esther": "에스더", "Job": "욥기", "Psalms": "시편", "Proverbs": "잠언",
+    "Ecclesiastes": "전도서", "Song of Solomon": "아가", "Isaiah": "이사야", "Jeremiah": "예레미야", "Lamentations": "예레미야애가",
+    "Ezekiel": "에스겔", "Daniel": "다니엘", "Hosea": "호세아", "Joel": "요엘", "Amos": "아모스",
+    "Obadiah": "오바댜", "Jonah": "요나", "Micah": "미가", "Nahum": "나훔", "Habakkuk": "하박국",
+    "Zephaniah": "스바냐", "Haggai": "학개", "Zechariah": "스가랴", "Malachi": "말라기",
+    "Matthew": "마태복음", "Mark": "마가복음", "Luke": "누가복음", "John": "요한복음", "Acts": "사도행전",
+    "Romans": "로마서", "1 Corinthians": "고린도전서", "2 Corinthians": "고린도후서", "Galatians": "갈라디아서", "Ephesians": "에베소서",
+    "Philippians": "빌립보서", "Colossians": "골로새서", "1 Thessalonians": "데살로니가전서", "2 Thessalonians": "데살로니가후서",
+    "1 Timothy": "디모데전서", "2 Timothy": "디모데후서", "Titus": "디도서", "Philemon": "빌레몬서", "Hebrews": "히브리서",
+    "James": "야고보서", "1 Peter": "베드로전서", "2 Peter": "베드로후서", "1 John": "요한일서", "2 John": "요한이서",
+    "3 John": "요한삼서", "Jude": "유다서", "Revelation": "요한계시록"
 }
+
+def create_link_data():
+    print("🚀 연결 데이터만 추출합니다...")
+    
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    
+    try:
+        # 다운로드
+        with urllib.request.urlopen(URL, context=ctx) as response:
+            data = json.loads(response.read().decode('utf-8'))
+        
+        new_data = {}
+        print("🔄 한글 주소로 변환 중...")
+
+        for key, refs in data.items():
+            # key: "Genesis 1:1"
+            # refs: ["John 1:1", "Hebrews 11:3"] (내용 없음, 주소만 있음)
+            
+            # 1. 키(Key) 한글 변환
+            kor_key = key
+            for eng, kor in ENG_TO_KOR.items():
+                if key.startswith(eng + " "):
+                    kor_key = key.replace(eng, kor, 1)
+                    break
+            
+            # 2. 값(Value) 리스트 한글 변환
+            kor_refs = []
+            for r in refs:
+                kor_ref = r
+                for eng, kor in ENG_TO_KOR.items():
+                    if eng in r:
+                        kor_ref = r.replace(eng, kor)
+                        break
+                kor_refs.append(kor_ref) # 주소만 리스트에 담음
+            
+            new_data[kor_key] = kor_refs
+        
+        # 저장
+        with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+            json.dump(new_data, f, ensure_ascii=False, indent=2)
+
+        print(f"🎉 성공! 'bible_refs.json'이 아주 가볍게 생성되었습니다.")
+
+    except Exception as e:
+        print(f"❌ 오류: {e}")
+
+if __name__ == "__main__":
+    create_link_data()
