@@ -5,10 +5,10 @@ import os
 # 1. 페이지 설정
 st.set_page_config(layout="wide", page_title="Bible Study Tool")
 
-# 2. [초강력 스타일] 왼쪽 정렬을 위한 CSS
+# 2. 스타일 정의 (욕심 부리지 않고 줄바꿈만 허용)
 st.markdown("""
 <style>
-    /* [1] 선택된 절 (파란 박스) */
+    /* 선택된 절 (파란 박스) */
     .verse-selected { 
         background-color: #e3f2fd; 
         border-left: 5px solid #2196F3; 
@@ -18,47 +18,22 @@ st.markdown("""
         margin-bottom: 5px;
         font-size: 16px;
         line-height: 1.6;
-        text-align: left !important;
         color: #000000;
-        display: block !important;
     }
     
-    /* [2] 버튼 (선택 안 된 절) - 왼쪽 정렬 강제 적용 */
-    /* Streamlit 버튼의 겉과 속을 모두 왼쪽으로 밀어버리는 코드입니다 */
+    /* 버튼 스타일 (긴 글자 줄바꿈만 적용) */
     div.stButton > button {
         width: 100% !important;
-        display: flex !important;
-        justify-content: flex-start !important; /* 내용물 왼쪽 배치 */
-        text-align: left !important;            /* 글자 왼쪽 정렬 */
-        border: 1px solid #f0f0f0;
-        background-color: #fff;
-        margin-bottom: 0px;
-        padding: 12px;
         height: auto !important;
-        white-space: normal !important; /* 긴 글자 줄바꿈 허용 */
-    }
-
-    /* [3] 버튼 안의 글자(p 태그)까지 강제 왼쪽 정렬 */
-    div.stButton > button p {
-        text-align: left !important;
-        font-size: 16px !important;
-        line-height: 1.6 !important;
-        margin: 0px !important;
-        width: 100% !important;
-    }
-    
-    /* 마우스 올렸을 때 */
-    div.stButton > button:hover {
-        border-color: #4caf50;
-        background-color: #f1f8e9;
-        color: #2e7d32;
+        white-space: normal !important; /* 줄바꿈 허용 */
+        padding: 10px;
+        line-height: 1.6;
     }
     
     /* 관주 아이템 */
     .ref-item {
         font-size: 14px;
         margin-bottom: 5px;
-        text-align: left !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -68,14 +43,12 @@ st.markdown("""
 def load_data():
     bible_data = {}
     refs_data = {}
-    
     if os.path.exists('bible_data.json'):
         with open('bible_data.json', 'r', encoding='utf-8') as f:
             bible_data = json.load(f)
     if os.path.exists('bible_refs.json'):
         with open('bible_refs.json', 'r', encoding='utf-8') as f:
             refs_data = json.load(f)
-            
     return bible_data, refs_data
 
 bible_data, refs_data = load_data()
@@ -151,7 +124,6 @@ else:
 
     # === 메인 화면 ===
     col_text, col_ref = st.columns([1, 1])
-    
     current_b = st.session_state['current_book']
     current_c = st.session_state['current_chapter']
     current_v = st.session_state['current_verse']
@@ -170,17 +142,17 @@ else:
                 raw_data = verses[v_num]
                 text = raw_data.get('text', str(raw_data)) if isinstance(raw_data, dict) else raw_data
 
-                # [★핵심 수정] 절 번호를 강제로 붙이는 변수 생성
-                label_with_num = f"{v_num}. {text}"
+                # [★절 번호 확실하게 만들기]
+                # 여기서 v_num(번호)과 text(내용)를 합칩니다.
+                final_label = f"{v_num}. {text}"
 
                 if v_num == current_v:
-                    # 선택된 절 (파란 박스)
-                    st.markdown(f"<div id='target' class='verse-selected'>{label_with_num}</div>", unsafe_allow_html=True)
+                    # 선택된 절
+                    st.markdown(f"<div id='target' class='verse-selected'>{final_label}</div>", unsafe_allow_html=True)
                 else:
                     # 선택 안 된 절 (버튼)
-                    # label=label_with_num 부분을 꼭 확인하세요!
                     st.button(
-                        label=label_with_num, 
+                        label=final_label,  # "1. 태초에..." 가 들어갑니다.
                         key=f"v_btn_{v_num}", 
                         use_container_width=True,
                         on_click=change_verse_only,
@@ -193,7 +165,6 @@ else:
     with col_ref:
         st.subheader("🔗 연결된 관주 (References)")
         st.caption(f"기준: {search_key}")
-        
         found_ref_links = refs_data.get(search_key, [])
         
         with st.container(height=700):
@@ -210,7 +181,6 @@ else:
                         preview_text = raw.get('text', str(raw)) if isinstance(raw, dict) else raw
                     except: pass
 
-                    # 관주 라벨에도 번호나 내용이 잘 들어가게 설정
                     btn_label = f"🔗 {link}\n{preview_text}"
                     
                     st.button(
