@@ -5,10 +5,10 @@ import os
 # 1. 페이지 설정
 st.set_page_config(layout="wide", page_title="Bible Study Tool")
 
-# 2. [초강력 스타일] 왼쪽 정렬을 위한 CSS 폭격
+# 2. 스타일 정의 (검증된 '왼쪽 정렬' 코드 유지)
 st.markdown("""
 <style>
-    /* [1] 선택된 절 (파란색 박스) 스타일 */
+    /* [1] 선택된 절 (파란색 박스) */
     .verse-selected { 
         background-color: #e3f2fd; 
         border-left: 5px solid #2196F3; 
@@ -23,7 +23,7 @@ st.markdown("""
         display: block;
     }
     
-    /* [2] 버튼 스타일 (기본 틀 잡기) */
+    /* [2] 버튼 스타일 기본 */
     div.stButton > button {
         width: 100% !important;
         background-color: #fff;
@@ -34,14 +34,14 @@ st.markdown("""
         margin-bottom: 0px;
     }
     
-    /* [핵심] 버튼 자체를 Flex 컨테이너로 만들고 왼쪽 정렬 */
+    /* [3] 버튼 내부 Flex 설정 (왼쪽 정렬의 핵심) */
     div.stButton > button {
         display: flex !important;
         justify-content: flex-start !important; /* 내용물 왼쪽 시작 */
         text-align: left !important;            /* 텍스트 왼쪽 정렬 */
     }
 
-    /* [초강력] 버튼 안에 있는 '모든 하위 요소'를 강제로 왼쪽으로 밉니다 */
+    /* [4] 버튼 내부의 모든 요소 강제 왼쪽 정렬 */
     div.stButton > button * {
         text-align: left !important;
         justify-content: flex-start !important;
@@ -169,17 +169,16 @@ else:
                 raw_data = verses[v_num]
                 text = raw_data.get('text', str(raw_data)) if isinstance(raw_data, dict) else raw_data
 
-                # [★확인용] 화살표와 절 번호를 강제로 붙입니다.
-                # 예: "▶ 1. 태초에..."
-                display_label = f"▶ {v_num}. {text}"
+                # [최종 수정] 화살표 제거! 깔끔하게 "번호. 내용"만 남김
+                clean_label = f"{v_num}. {text}"
 
                 if v_num == current_v:
-                    # 선택된 절 (파란 박스 - 번호 강조)
-                    st.markdown(f"<div id='target' class='verse-selected'><b>{v_num}.</b> {text}</div>", unsafe_allow_html=True)
+                    # 선택된 절 (파란 박스)
+                    st.markdown(f"<div id='target' class='verse-selected'>{clean_label}</div>", unsafe_allow_html=True)
                 else:
                     # 선택 안 된 절 (버튼)
                     st.button(
-                        label=display_label, 
+                        label=clean_label, 
                         key=f"v_btn_{v_num}", 
                         use_container_width=True,
                         on_click=change_verse_only,
