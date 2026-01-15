@@ -5,10 +5,10 @@ import os
 # 1. 페이지 설정
 st.set_page_config(layout="wide", page_title="Bible Study Tool")
 
-# 2. 스타일 정의 (버튼을 글자처럼 보이게 하는 CSS 마법)
+# 2. 스타일 정의 (왼쪽 정렬 강제 적용!)
 st.markdown("""
 <style>
-    /* 현재 선택된 절 강조 스타일 (파란색 배경) */
+    /* [수정] 현재 선택된 절 강조 스타일 */
     .verse-selected { 
         background-color: #e3f2fd; 
         border-left: 5px solid #2196F3; 
@@ -18,20 +18,22 @@ st.markdown("""
         margin-bottom: 5px;
         font-size: 16px;
         line-height: 1.6;
+        text-align: left !important; /* 왼쪽 정렬 강제 */
     }
     
-    /* [핵심] 버튼을 일반 텍스트 목록처럼 보이게 꾸미기 */
+    /* [수정] 버튼 스타일 (왼쪽 정렬 강력 적용) */
     div.stButton > button {
         width: 100%;
-        text-align: left;       /* 왼쪽 정렬 (성경책처럼) */
+        text-align: left !important;        /* 텍스트 왼쪽 정렬 */
+        justify-content: flex-start !important; /* 내용물 왼쪽 배치 (Flexbox 대응) */
         border: 1px solid #f0f0f0;
         background-color: #fff;
         margin-bottom: 0px;
         padding: 10px;
         font-size: 16px;
         line-height: 1.6;
-        height: auto;           /* 높이 자동 조절 (긴 구절 안 짤리게) */
-        white-space: normal;    /* 텍스트 줄바꿈 허용 */
+        height: auto;
+        white-space: normal;
     }
     
     /* 마우스 올렸을 때 효과 */
@@ -45,6 +47,12 @@ st.markdown("""
     .ref-item {
         font-size: 14px;
         margin-bottom: 5px;
+        text-align: left;
+    }
+    
+    /* 버튼 내부의 p 태그까지 확실하게 왼쪽 정렬 */
+    div.stButton > button p {
+        text-align: left !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -68,7 +76,7 @@ bible_data, refs_data = load_data()
 
 # 4. 기능 함수들
 
-# (A) 관주 클릭 시 이동하는 함수 (다른 책/장으로 점프)
+# (A) 관주 클릭 시 이동
 def go_to_verse(ref_string):
     try:
         parts = ref_string.split(':')
@@ -83,7 +91,6 @@ def go_to_verse(ref_string):
         st.session_state['current_chapter'] = chapter_num
         st.session_state['current_verse'] = verse_num
         
-        # 사이드바 동기화
         st.session_state['sb_book'] = book_name
         st.session_state['sb_chapter'] = chapter_num
         st.session_state['sb_verse'] = verse_num
@@ -91,7 +98,7 @@ def go_to_verse(ref_string):
     except Exception as e:
         print(f"이동 오류: {e}")
 
-# (B) [NEW] 같은 장 안에서 절만 바꾸는 함수 (왼쪽 본문 클릭 시)
+# (B) 본문 클릭 시 (절만 변경)
 def change_verse_only(v_num):
     st.session_state['current_verse'] = v_num
     st.session_state['sb_verse'] = v_num
@@ -132,7 +139,6 @@ else:
         except: v_idx = 0
         selected_verse_num = st.selectbox("절", verse_keys, index=v_idx, key='sb_verse')
 
-        # 사이드바 조작 시 동기화
         if selected_book != st.session_state['current_book']:
             st.session_state['current_book'] = selected_book
             st.session_state['current_chapter'] = "1"
@@ -154,7 +160,7 @@ else:
     current_v = st.session_state['current_verse']
     search_key = f"{current_b} {current_c}:{current_v}"
 
-    # [왼쪽] 성경 본문 (업그레이드: 클릭 가능!)
+    # [왼쪽] 성경 본문
     with col_text:
         st.subheader(f"📜 {current_b} {current_c}장")
         
@@ -167,24 +173,20 @@ else:
                 raw_data = verses[v_num]
                 text = raw_data.get('text', str(raw_data)) if isinstance(raw_data, dict) else raw_data
 
-                # [로직 변경]
-                # 1. 내가 지금 선택한 절이다? -> '파란색 박스'로 보여줌 (누를 필요 없음)
                 if v_num == current_v:
                     st.markdown(f"<div id='target' class='verse-selected'>{v_num}. {text}</div>", unsafe_allow_html=True)
-                
-                # 2. 선택 안 된 절이다? -> '버튼'으로 보여줌 (누르면 선택됨!)
                 else:
                     st.button(
                         f"{v_num}. {text}", 
                         key=f"v_btn_{v_num}", 
                         use_container_width=True,
-                        on_click=change_verse_only, # 클릭하면 change_verse_only 함수 실행
-                        args=(v_num,)               # 클릭한 절 번호(v_num)를 전달
+                        on_click=change_verse_only,
+                        args=(v_num,)
                     )
         else:
             st.error("데이터 없음")
 
-    # [오른쪽] 관주 (여기도 클릭 가능)
+    # [오른쪽] 관주
     with col_ref:
         st.subheader("🔗 연결된 관주 (References)")
         st.caption(f"기준: {search_key}")
@@ -194,7 +196,6 @@ else:
         with st.container(height=700):
             if found_ref_links:
                 for idx, link in enumerate(found_ref_links):
-                    # 미리보기 내용 찾기
                     preview_text = ""
                     try:
                         parts = link.split(':')
