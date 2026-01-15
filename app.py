@@ -1,7 +1,8 @@
 import streamlit as st
-import streamlit.components.v1 as components  # [추가] 자바스크립트 사용을 위한 도구
+import streamlit.components.v1 as components
 import json
 import os
+import time
 
 # 1. 페이지 설정
 st.set_page_config(layout="wide", page_title="Bible Study Tool")
@@ -22,7 +23,8 @@ st.markdown("""
         text-align: left !important;
         color: #000000;
         display: block;
-        scroll-margin-top: 50px; /* 스크롤될 때 위쪽 여백 확보 */
+        /* 스크롤될 때 위쪽 여백 확보 */
+        scroll-margin-top: 100px; 
     }
     
     /* [2] 버튼 스타일 (왼쪽 정렬 강제) */
@@ -173,8 +175,8 @@ else:
                     display_label = f"▶ {v_num}. {text}"
 
                     if v_num == current_v:
-                        # [ID 부여] 자바스크립트가 이 'target'을 찾아서 이동합니다.
-                        st.markdown(f"<div id='target' class='verse-selected'><b>{v_num}.</b> {text}</div>", unsafe_allow_html=True)
+                        # [클래스 유지] 자바스크립트가 '.verse-selected'를 찾습니다.
+                        st.markdown(f"<div class='verse-selected'><b>{v_num}.</b> {text}</div>", unsafe_allow_html=True)
                     else:
                         st.button(
                             label=display_label, 
@@ -218,21 +220,25 @@ else:
             else:
                 st.info(f"💡 {search_key}에 대한 관주가 없습니다.")
 
-# [★핵심 추가] 자바스크립트 자동 스크롤 코드
-# 페이지가 로드되고 0.3초 뒤에 'target'이라는 아이디를 가진 요소(파란 박스)를 찾아서
-# 화면 중앙/상단으로 부드럽게 스크롤합니다.
+# [★수정된 자바스크립트]
+# 1. setTimeout(500): 0.5초 기다려서 화면이 다 그려진 뒤에 실행합니다.
+# 2. getElementsByClassName: ID 대신 '파란 박스(verse-selected)'를 직접 찾습니다.
 components.html(
     """
     <script>
         setTimeout(function() {
-            var element = window.parent.document.getElementById('target');
-            if (element) {
-                // block: "start"는 맨 위, "center"는 중앙입니다.
-                // "start"가 가끔 제목에 가려질 수 있어 "center"가 안전하지만
-                // 요청하신대로 "start"(위쪽)에 가깝게 하되 여유를 두었습니다.
-                element.scrollIntoView({behavior: 'smooth', block: 'center'});
+            try {
+                // 부모 창(Streamlit 앱)에서 'verse-selected' 클래스를 가진 요소를 찾음
+                var targets = window.parent.document.getElementsByClassName('verse-selected');
+                if (targets.length > 0) {
+                    var target = targets[0];
+                    // 화면 중앙으로 부드럽게 이동
+                    target.scrollIntoView({behavior: 'smooth', block: 'center'});
+                }
+            } catch(e) {
+                console.log("스크롤 이동 실패: 보안 정책상 접근이 제한될 수 있습니다.");
             }
-        }, 300);
+        }, 500);
     </script>
     """,
     height=0,
