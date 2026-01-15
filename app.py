@@ -2,26 +2,45 @@ import streamlit as st
 import json
 import os
 
-# 페이지 설정
+# 1. 페이지 설정 (넓게 보기)
 st.set_page_config(layout="wide", page_title="Bible Study Tool")
 
-# 스타일 정의
+# 2. 스타일 정의 (스크롤바 및 디자인)
 st.markdown("""
 <style>
+    /* 성경 본문 스타일 */
     .verse-box { padding: 10px; border-bottom: 1px solid #eee; font-size: 16px; }
     .verse-selected { background-color: #e3f2fd; border-left: 5px solid #2196F3; padding: 10px; font-weight: bold;}
-    .ref-item { background-color: #f1f8e9; padding: 10px; margin-bottom: 8px; border-radius: 5px; border-left: 4px solid #4caf50; font-size: 14px;}
-    .comm-box { background-color: #fff8e1; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107; font-size: 15px; line-height: 1.6; }
-    .comm-title { font-weight: bold; color: #d32f2f; margin-bottom: 5px; }
+    
+    /* [핵심] 관주 영역 스크롤 박스 (높이 700px로 확대) */
+    .ref-container {
+        height: 700px;          /* 높이를 넉넉하게 잡았습니다 */
+        overflow-y: auto;       /* 내용이 넘치면 스크롤바 생성 */
+        border: 1px solid #ddd;
+        padding: 15px;
+        border-radius: 8px;
+        background-color: #f8f9fa;
+    }
+    
+    /* 관주 아이템 카드 디자인 */
+    .ref-item { 
+        background-color: #ffffff; 
+        padding: 12px; 
+        margin-bottom: 10px; 
+        border-radius: 5px; 
+        border-left: 5px solid #4caf50; /* 초록색 포인트 */
+        font-size: 15px; 
+        line-height: 1.5;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# 데이터 로드
+# 3. 데이터 로드 (주석 데이터는 이제 안 읽어옵니다)
 @st.cache_data
 def load_data():
     bible_data = {}
     refs_data = {}
-    comm_data = {}
     
     if os.path.exists('bible_data.json'):
         with open('bible_data.json', 'r', encoding='utf-8') as f:
@@ -29,15 +48,12 @@ def load_data():
     if os.path.exists('bible_refs.json'):
         with open('bible_refs.json', 'r', encoding='utf-8') as f:
             refs_data = json.load(f)
-    if os.path.exists('bible_comm.json'):
-        with open('bible_comm.json', 'r', encoding='utf-8') as f:
-            comm_data = json.load(f)
             
-    return bible_data, refs_data, comm_data
+    return bible_data, refs_data
 
-bible_data, refs_data, comm_data = load_data()
+bible_data, refs_data = load_data()
 
-# [핵심 기능] 주소를 주면 내용을 찾아오는 탐정 함수 (포장지 뜯기 기능 추가!)
+# 4. 탐정 함수 (주소 -> 내용 변환)
 def get_verse_text(ref_string):
     try:
         parts = ref_string.split(':')
@@ -52,25 +68,24 @@ def get_verse_text(ref_string):
             if chapter_num in bible_data[book_name]:
                 if verse_num in bible_data[book_name][chapter_num]:
                     raw_data = bible_data[book_name][chapter_num][verse_num]
-                    
-                    # [수정된 부분] 데이터가 포장(dict)되어 있으면 'text'만 꺼냄
+                    # 포장지 뜯기
                     if isinstance(raw_data, dict):
                         text = raw_data.get('text', str(raw_data))
                     else:
                         text = raw_data
-                        
-                    return f"<b>{ref_string}</b> - {text}"
+                    return f"<b>{ref_string}</b><br>{text}" # 줄바꿈 추가해서 가독성 높임
         
         return ref_string + " (데이터 없음)"
     except:
         return ref_string
 
-st.title("📖 통합 성경 연구 도구")
+st.title("📖 성경 관주 연구 (Deep References)")
 st.markdown("---")
 
 if not bible_data:
     st.error("성경 데이터(bible_data.json)가 필요합니다.")
 else:
+    # 사이드바 설정
     with st.sidebar:
         st.header("🔍 성경 찾기")
         book_list = list(bible_data.keys())
@@ -85,16 +100,16 @@ else:
         verse_keys.sort(key=lambda x: int(x))
         selected_verse_num = st.selectbox("절", verse_keys)
 
-    col_text, col_ref, col_comm = st.columns([2, 1, 1])
+    # === [변경된 레이아웃] 3단 -> 2단 (50:50 비율) ===
+    col_text, col_ref = st.columns([1, 1])
+    
     search_key = f"{selected_book} {selected_chapter}:{selected_verse_num}"
 
-    # [1열] 성경 본문
+    # [왼쪽] 성경 본문
     with col_text:
         st.subheader(f"📜 {selected_book} {selected_chapter}장")
         for v_num in verse_keys:
             raw_data = verses_in_chapter[v_num]
-            
-            # [수정된 부분] 여기서도 'text'만 쏙 뽑아냅니다
             if isinstance(raw_data, dict):
                 text = raw_data.get('text', str(raw_data))
             else:
@@ -105,25 +120,27 @@ else:
             else:
                 st.markdown(f"<div class='verse-box'>{v_num}. {text}</div>", unsafe_allow_html=True)
 
-    # [2열] 관주
+    # [오른쪽] 관주 (넓어진 화면 + 스크롤바)
     with col_ref:
-        st.subheader("🔗 관주 (References)")
-        st.caption(f"기준: {search_key}")
+        st.subheader("🔗 연결된 관주 (References)")
+        st.caption(f"기준 구절: {search_key}")
         
         found_ref_links = refs_data.get(search_key, [])
         
+        # 스크롤 박스 시작
+        html_content = "<div class='ref-container'>"
+        
         if found_ref_links:
+            count = len(found_ref_links)
+            html_content += f"<div style='margin-bottom:10px; color:#666;'>총 <b>{count}</b>개의 연결 구절을 찾았습니다.</div>"
+            
             for link in found_ref_links:
                 full_text = get_verse_text(link)
-                st.markdown(f"<div class='ref-item'>{full_text}</div>", unsafe_allow_html=True)
+                html_content += f"<div class='ref-item'>{full_text}</div>"
         else:
-            st.info("💡 관주 데이터가 없습니다.")
-
-    # [3열] 주석
-    with col_comm:
-        st.subheader("📚 주석 (Commentary)")
-        found_comm = comm_data.get(search_key, "")
-        if found_comm:
-            st.markdown(f"<div class='comm-box'><div class='comm-title'>매튜 헨리 주석</div>{found_comm}</div>", unsafe_allow_html=True)
-        else:
-            st.warning("이 구절에 대한 주석이 없습니다.")
+            html_content += "<div style='padding:20px; text-align:center;'>💡 연결된 관주가 없습니다.</div>"
+            
+        html_content += "</div>"
+        # 스크롤 박스 끝
+        
+        st.markdown(html_content, unsafe_allow_html=True)
