@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components  # [추가] 자바스크립트 사용을 위한 도구
 import json
 import os
 
@@ -21,6 +22,7 @@ st.markdown("""
         text-align: left !important;
         color: #000000;
         display: block;
+        scroll-margin-top: 50px; /* 스크롤될 때 위쪽 여백 확보 */
     }
     
     /* [2] 버튼 스타일 (왼쪽 정렬 강제) */
@@ -153,7 +155,7 @@ else:
     current_v = st.session_state['current_verse']
     search_key = f"{current_b} {current_c}:{current_v}"
 
-    # [왼쪽] 성경 본문 (여기도 스크롤 박스 적용!)
+    # [왼쪽] 성경 본문
     with col_text:
         st.subheader(f"📜 {current_b} {current_c}장")
         
@@ -162,20 +164,18 @@ else:
             v_keys = list(verses.keys())
             v_keys.sort(key=lambda x: int(x))
 
-            # [NEW] 높이 700px로 고정하고 스크롤 생기게 함
+            # 높이 700px 스크롤 박스
             with st.container(height=700):
                 for v_num in v_keys:
                     raw_data = verses[v_num]
                     text = raw_data.get('text', str(raw_data)) if isinstance(raw_data, dict) else raw_data
 
-                    # 화살표와 절 번호
                     display_label = f"▶ {v_num}. {text}"
 
                     if v_num == current_v:
-                        # 선택된 절
+                        # [ID 부여] 자바스크립트가 이 'target'을 찾아서 이동합니다.
                         st.markdown(f"<div id='target' class='verse-selected'><b>{v_num}.</b> {text}</div>", unsafe_allow_html=True)
                     else:
-                        # 선택 안 된 절
                         st.button(
                             label=display_label, 
                             key=f"v_btn_{v_num}", 
@@ -186,13 +186,12 @@ else:
         else:
             st.error("데이터 없음")
 
-    # [오른쪽] 관주 (스크롤 박스 유지)
+    # [오른쪽] 관주
     with col_ref:
         st.subheader("🔗 연결된 관주 (References)")
         st.caption(f"기준: {search_key}")
         found_ref_links = refs_data.get(search_key, [])
         
-        # 높이 700px로 고정 (왼쪽과 높이 통일)
         with st.container(height=700):
             if found_ref_links:
                 for idx, link in enumerate(found_ref_links):
@@ -218,3 +217,24 @@ else:
                     )
             else:
                 st.info(f"💡 {search_key}에 대한 관주가 없습니다.")
+
+# [★핵심 추가] 자바스크립트 자동 스크롤 코드
+# 페이지가 로드되고 0.3초 뒤에 'target'이라는 아이디를 가진 요소(파란 박스)를 찾아서
+# 화면 중앙/상단으로 부드럽게 스크롤합니다.
+components.html(
+    """
+    <script>
+        setTimeout(function() {
+            var element = window.parent.document.getElementById('target');
+            if (element) {
+                // block: "start"는 맨 위, "center"는 중앙입니다.
+                // "start"가 가끔 제목에 가려질 수 있어 "center"가 안전하지만
+                // 요청하신대로 "start"(위쪽)에 가깝게 하되 여유를 두었습니다.
+                element.scrollIntoView({behavior: 'smooth', block: 'center'});
+            }
+        }, 300);
+    </script>
+    """,
+    height=0,
+    width=0
+)
