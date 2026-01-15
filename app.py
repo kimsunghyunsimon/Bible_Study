@@ -2,10 +2,9 @@ import streamlit as st
 import json
 import os
 
-# 1. 페이지 설정
+# 페이지 설정
 st.set_page_config(layout="wide", page_title="Bible Study Tool")
 
-# 스타일 정의 (화면을 예쁘게 꾸미는 부분)
 st.markdown("""
 <style>
     .verse-box { padding: 10px; border-bottom: 1px solid #eee; font-size: 16px; }
@@ -16,24 +15,19 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 2. 데이터 로드 함수 (성경 & 관주 & 주석 3가지를 다 읽어옵니다)
+# 데이터 로드
 @st.cache_data
 def load_data():
     bible_data = {}
     refs_data = {}
     comm_data = {}
     
-    # 성경 본문 읽기
     if os.path.exists('bible_data.json'):
         with open('bible_data.json', 'r', encoding='utf-8') as f:
             bible_data = json.load(f)
-
-    # 관주 데이터 읽기
     if os.path.exists('bible_refs.json'):
         with open('bible_refs.json', 'r', encoding='utf-8') as f:
             refs_data = json.load(f)
-
-    # [중요] 주석 데이터 읽기 (새로 추가됨!)
     if os.path.exists('bible_comm.json'):
         with open('bible_comm.json', 'r', encoding='utf-8') as f:
             comm_data = json.load(f)
@@ -42,77 +36,83 @@ def load_data():
 
 bible_data, refs_data, comm_data = load_data()
 
+# [핵심 기능] 주소("요한복음 1:1")를 주면 성경 본문을 찾아오는 탐정 함수
+def get_verse_text(ref_string):
+    try:
+        # "요한복음 1:1" -> ["요한복음 1", "1"] 로 분리
+        parts = ref_string.split(':')
+        if len(parts) < 2: return ref_string # 형식이 이상하면 그냥 주소만 리턴
+
+        verse_num = parts[1].strip() # "1"
+        
+        # "요한복음 1" -> ["요한복음", "1"] 로 분리 (뒤에서 첫번째 공백 기준)
+        temp = parts[0].rsplit(' ', 1)
+        book_name = temp[0].strip() # "요한복음"
+        chapter_num = temp[1].strip() # "1"
+        
+        # 성경 데이터에서 찾기
+        if book_name in bible_data:
+            if chapter_num in bible_data[book_name]:
+                if verse_num in bible_data[book_name][chapter_num]:
+                    text = bible_data[book_name][chapter_num][verse_num]
+                    # 결과: "요한복음 1:1 - 태초에 말씀이..."
+                    return f"<b>{ref_string}</b> - {text}"
+        
+        return ref_string + " (데이터 없음)"
+    except:
+        return ref_string
+
 st.title("📖 통합 성경 연구 도구")
 st.markdown("---")
 
 if not bible_data:
-    st.error("데이터 파일(bible_data.json)이 없습니다. 깃허브에 파일을 올려주세요.")
+    st.error("성경 데이터(bible_data.json)가 필요합니다.")
 else:
-    # 3. 사이드바 (책/장/절 선택 기능)
     with st.sidebar:
         st.header("🔍 성경 찾기")
-        
         book_list = list(bible_data.keys())
         selected_book = st.selectbox("성경", book_list)
         
-        # 장 선택 (숫자 순서로 정렬)
         chapter_keys = list(bible_data[selected_book].keys())
         chapter_keys.sort(key=lambda x: int(x))
         selected_chapter = st.selectbox("장", chapter_keys)
         
-        # 절 선택 (숫자 순서로 정렬)
         verses_in_chapter = bible_data[selected_book][selected_chapter]
         verse_keys = list(verses_in_chapter.keys())
         verse_keys.sort(key=lambda x: int(x))
         selected_verse_num = st.selectbox("절", verse_keys)
 
-    # 4. 메인 화면 3단 분할 (본문 / 관주 / 주석)
     col_text, col_ref, col_comm = st.columns([2, 1, 1])
-
-    # 검색 키 만들기 (예: "창세기 1:1") -> 이걸로 관주랑 주석을 찾습니다.
     search_key = f"{selected_book} {selected_chapter}:{selected_verse_num}"
 
-    # [1열] 성경 본문 표시
     with col_text:
         st.subheader(f"📜 {selected_book} {selected_chapter}장")
         for v_num in verse_keys:
-            v_data = verses_in_chapter[v_num]
-            # 데이터가 {text: ...} 형태인지 그냥 문자열인지 확인
-            text = v_data['text'] if isinstance(v_data, dict) else v_data 
-            
+            text = verses_in_chapter[v_num]
             if v_num == selected_verse_num:
-                # 선택된 절은 파란색 배경으로 강조
                 st.markdown(f"<div id='target' class='verse-selected'>{v_num}. {text}</div>", unsafe_allow_html=True)
             else:
                 st.markdown(f"<div class='verse-box'>{v_num}. {text}</div>", unsafe_allow_html=True)
 
-    # [2열] 관주 (References) 표시
     with col_ref:
         st.subheader("🔗 관주 (References)")
         st.caption(f"기준: {search_key}")
         
-        found_refs = refs_data.get(search_key, [])
+        # 주소 리스트만 가져옴 (예: ["요한복음 1:1", "히브리서 11:3"])
+        found_ref_links = refs_data.get(search_key, [])
         
-        if found_refs:
-            for ref in found_refs:
-                st.markdown(f"<div class='ref-item'>{ref}</div>", unsafe_allow_html=True)
+        if found_ref_links:
+            for link in found_ref_links:
+                # 여기서 함수를 써서 내용을 찾아옵니다!
+                full_text = get_verse_text(link)
+                st.markdown(f"<div class='ref-item'>{full_text}</div>", unsafe_allow_html=True)
         else:
-            st.info("💡 등록된 관주 데이터가 없습니다.")
+            st.info("💡 관주 데이터가 없습니다.")
 
-    # [3열] 주석 (Commentary) 표시
     with col_comm:
         st.subheader("📚 주석 (Commentary)")
-        
-        # 주석 파일에서 내용 찾기
         found_comm = comm_data.get(search_key, "")
-        
         if found_comm:
-            st.markdown(f"""
-            <div class='comm-box'>
-                <div class='comm-title'>매튜 헨리 주석</div>
-                {found_comm}
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"<div class='comm-box'><div class='comm-title'>매튜 헨리 주석</div>{found_comm}</div>", unsafe_allow_html=True)
         else:
-            # 주석이 없으면 노란색 박스로 안내
-            st.warning(f"이 구절({search_key})에 대한 주석이 없습니다.")
+            st.warning("주석 없음")
