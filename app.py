@@ -5,7 +5,7 @@ import os
 # 1. 페이지 설정
 st.set_page_config(layout="wide", page_title="Bible Study Tool")
 
-# 2. 스타일 정의 (왼쪽 정렬을 위한 강력한 CSS)
+# 2. 스타일 정의 (초강력 왼쪽 정렬 CSS)
 st.markdown("""
 <style>
     /* [1] 현재 선택된 절 (파란색 박스) */
@@ -20,27 +20,33 @@ st.markdown("""
         line-height: 1.6;
         text-align: left !important;
         color: #000000;
+        display: block !important;
     }
     
-    /* [2] 선택 안 된 절 (버튼) - 왼쪽 정렬 강제 적용 */
+    /* [2] 버튼 (선택 안 된 절) - 내부 구조까지 강제 정렬 */
     div.stButton > button {
         width: 100% !important;
-        
-        /* Flexbox 속성을 이용해 내용물을 강제로 왼쪽으로 밉니다 */
-        display: flex !important;
-        justify-content: flex-start !important; 
-        align-items: flex-start !important;
-        text-align: left !important;
-        
         border: 1px solid #f0f0f0;
         background-color: #fff;
         margin-bottom: 0px;
         padding: 12px;
-        font-size: 16px;
-        line-height: 1.6;
-        height: auto;
-        white-space: normal; /* 긴 텍스트 줄바꿈 허용 */
-        color: #333333;
+        height: auto !important;
+        min-height: 50px;
+    }
+
+    /* 버튼 안의 텍스트 컨테이너 강제 왼쪽 정렬 */
+    div.stButton > button div {
+        display: block !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+    }
+
+    /* 버튼 안의 실제 글자(p태그) 강제 왼쪽 정렬 */
+    div.stButton > button p {
+        text-align: left !important;
+        font-size: 16px !important;
+        line-height: 1.6 !important;
+        word-break: keep-all; /* 단어 단위 줄바꿈 (한글 최적화) */
     }
     
     /* 마우스 올렸을 때 효과 */
@@ -50,17 +56,11 @@ st.markdown("""
         color: #2e7d32;
     }
     
-    /* 버튼 내부 텍스트(p태그)도 왼쪽 정렬 */
-    div.stButton > button p {
-        text-align: left !important;
-        margin: 0px !important;
-    }
-    
     /* 관주 아이템 스타일 */
     .ref-item {
         font-size: 14px;
         margin-bottom: 5px;
-        text-align: left;
+        text-align: left !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -181,17 +181,16 @@ else:
                 raw_data = verses[v_num]
                 text = raw_data.get('text', str(raw_data)) if isinstance(raw_data, dict) else raw_data
 
-                # 버튼에 표시될 라벨 만들기 (절 번호 + 내용)
-                # 예: "1. 태초에 하나님이..."
+                # [절 번호 추가] 여기서 "1. " 형태를 만듭니다.
                 verse_label = f"{v_num}. {text}"
 
                 if v_num == current_v:
-                    # 선택된 절 (파란 박스)
+                    # 선택된 절
                     st.markdown(f"<div id='target' class='verse-selected'>{verse_label}</div>", unsafe_allow_html=True)
                 else:
                     # 선택 안 된 절 (버튼)
                     st.button(
-                        verse_label,  # 여기에 번호가 포함된 라벨을 넣습니다
+                        verse_label, 
                         key=f"v_btn_{v_num}", 
                         use_container_width=True,
                         on_click=change_verse_only,
