@@ -5,6 +5,7 @@ import os
 # 페이지 설정
 st.set_page_config(layout="wide", page_title="Bible Study Tool")
 
+# 스타일 정의
 st.markdown("""
 <style>
     .verse-box { padding: 10px; border-bottom: 1px solid #eee; font-size: 16px; }
@@ -36,26 +37,28 @@ def load_data():
 
 bible_data, refs_data, comm_data = load_data()
 
-# [핵심 기능] 주소("요한복음 1:1")를 주면 성경 본문을 찾아오는 탐정 함수
+# [핵심 기능] 주소를 주면 내용을 찾아오는 탐정 함수 (포장지 뜯기 기능 추가!)
 def get_verse_text(ref_string):
     try:
-        # "요한복음 1:1" -> ["요한복음 1", "1"] 로 분리
         parts = ref_string.split(':')
-        if len(parts) < 2: return ref_string # 형식이 이상하면 그냥 주소만 리턴
+        if len(parts) < 2: return ref_string
 
-        verse_num = parts[1].strip() # "1"
-        
-        # "요한복음 1" -> ["요한복음", "1"] 로 분리 (뒤에서 첫번째 공백 기준)
+        verse_num = parts[1].strip()
         temp = parts[0].rsplit(' ', 1)
-        book_name = temp[0].strip() # "요한복음"
-        chapter_num = temp[1].strip() # "1"
+        book_name = temp[0].strip()
+        chapter_num = temp[1].strip()
         
-        # 성경 데이터에서 찾기
         if book_name in bible_data:
             if chapter_num in bible_data[book_name]:
                 if verse_num in bible_data[book_name][chapter_num]:
-                    text = bible_data[book_name][chapter_num][verse_num]
-                    # 결과: "요한복음 1:1 - 태초에 말씀이..."
+                    raw_data = bible_data[book_name][chapter_num][verse_num]
+                    
+                    # [수정된 부분] 데이터가 포장(dict)되어 있으면 'text'만 꺼냄
+                    if isinstance(raw_data, dict):
+                        text = raw_data.get('text', str(raw_data))
+                    else:
+                        text = raw_data
+                        
                     return f"<b>{ref_string}</b> - {text}"
         
         return ref_string + " (데이터 없음)"
@@ -85,34 +88,42 @@ else:
     col_text, col_ref, col_comm = st.columns([2, 1, 1])
     search_key = f"{selected_book} {selected_chapter}:{selected_verse_num}"
 
+    # [1열] 성경 본문
     with col_text:
         st.subheader(f"📜 {selected_book} {selected_chapter}장")
         for v_num in verse_keys:
-            text = verses_in_chapter[v_num]
+            raw_data = verses_in_chapter[v_num]
+            
+            # [수정된 부분] 여기서도 'text'만 쏙 뽑아냅니다
+            if isinstance(raw_data, dict):
+                text = raw_data.get('text', str(raw_data))
+            else:
+                text = raw_data
+
             if v_num == selected_verse_num:
                 st.markdown(f"<div id='target' class='verse-selected'>{v_num}. {text}</div>", unsafe_allow_html=True)
             else:
                 st.markdown(f"<div class='verse-box'>{v_num}. {text}</div>", unsafe_allow_html=True)
 
+    # [2열] 관주
     with col_ref:
         st.subheader("🔗 관주 (References)")
         st.caption(f"기준: {search_key}")
         
-        # 주소 리스트만 가져옴 (예: ["요한복음 1:1", "히브리서 11:3"])
         found_ref_links = refs_data.get(search_key, [])
         
         if found_ref_links:
             for link in found_ref_links:
-                # 여기서 함수를 써서 내용을 찾아옵니다!
                 full_text = get_verse_text(link)
                 st.markdown(f"<div class='ref-item'>{full_text}</div>", unsafe_allow_html=True)
         else:
             st.info("💡 관주 데이터가 없습니다.")
 
+    # [3열] 주석
     with col_comm:
         st.subheader("📚 주석 (Commentary)")
         found_comm = comm_data.get(search_key, "")
         if found_comm:
             st.markdown(f"<div class='comm-box'><div class='comm-title'>매튜 헨리 주석</div>{found_comm}</div>", unsafe_allow_html=True)
         else:
-            st.warning("주석 없음")
+            st.warning("이 구절에 대한 주석이 없습니다.")
