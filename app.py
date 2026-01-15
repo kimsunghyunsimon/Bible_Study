@@ -1,16 +1,14 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import json
 import os
-import time
 
 # 1. 페이지 설정
 st.set_page_config(layout="wide", page_title="Bible Study Tool")
 
-# 2. 스타일 정의 (왼쪽 정렬 & 화살표 번호 유지)
+# 2. 스타일 정의 (왼쪽 정렬 + 깔끔한 디자인)
 st.markdown("""
 <style>
-    /* [1] 선택된 절 (파란색 박스) */
+    /* [1] 선택된 절 (파란색 박스) - 맨 위에 고정됨 */
     .verse-selected { 
         background-color: #e3f2fd; 
         border-left: 5px solid #2196F3; 
@@ -23,18 +21,16 @@ st.markdown("""
         text-align: left !important;
         color: #000000;
         display: block;
-        /* 스크롤될 때 위쪽 여백 확보 */
-        scroll-margin-top: 100px; 
     }
     
-    /* [2] 버튼 스타일 (왼쪽 정렬 강제) */
+    /* [2] 버튼 스타일 (왼쪽 정렬) */
     div.stButton > button {
         width: 100% !important;
         background-color: #fff;
         border: 1px solid #f0f0f0;
         padding: 12px 15px;
         height: auto !important;
-        white-space: normal !important; /* 줄바꿈 허용 */
+        white-space: normal !important;
         margin-bottom: 0px;
         
         display: flex !important;
@@ -42,7 +38,6 @@ st.markdown("""
         text-align: left !important;
     }
 
-    /* [3] 버튼 내부 요소 강제 왼쪽 정렬 */
     div.stButton > button * {
         text-align: left !important;
         justify-content: flex-start !important;
@@ -50,14 +45,12 @@ st.markdown("""
         margin-left: 0 !important;
     }
     
-    /* 마우스 올렸을 때 효과 */
     div.stButton > button:hover {
         border-color: #4caf50;
         background-color: #f1f8e9;
         color: #2e7d32;
     }
     
-    /* 관주 아이템 스타일 */
     .ref-item {
         font-size: 14px;
         margin-bottom: 5px;
@@ -166,29 +159,39 @@ else:
             v_keys = list(verses.keys())
             v_keys.sort(key=lambda x: int(x))
 
-            # 높이 700px 스크롤 박스
-            with st.container(height=700):
-                for v_num in v_keys:
-                    raw_data = verses[v_num]
-                    text = raw_data.get('text', str(raw_data)) if isinstance(raw_data, dict) else raw_data
+            # [핵심 로직 변경]
+            # 전체 구절을 다 보여주는 게 아니라,
+            # '현재 선택된 절(current_v)'보다 같거나 큰 절만 추려냅니다.
+            # 이렇게 하면 선택된 절이 무조건 리스트의 1번 타자가 됩니다.
+            try:
+                target_v_int = int(current_v)
+                display_keys = [k for k in v_keys if int(k) >= target_v_int]
+            except:
+                display_keys = v_keys
 
-                    display_label = f"▶ {v_num}. {text}"
+            # 스크롤 박스 제거! (그냥 쭉 보여줍니다)
+            for v_num in display_keys:
+                raw_data = verses[v_num]
+                text = raw_data.get('text', str(raw_data)) if isinstance(raw_data, dict) else raw_data
 
-                    if v_num == current_v:
-                        # [클래스 유지] 자바스크립트가 '.verse-selected'를 찾습니다.
-                        st.markdown(f"<div class='verse-selected'><b>{v_num}.</b> {text}</div>", unsafe_allow_html=True)
-                    else:
-                        st.button(
-                            label=display_label, 
-                            key=f"v_btn_{v_num}", 
-                            use_container_width=True,
-                            on_click=change_verse_only,
-                            args=(v_num,)
-                        )
+                display_label = f"▶ {v_num}. {text}"
+
+                if v_num == current_v:
+                    # 선택된 절 (맨 위에 나옴)
+                    st.markdown(f"<div class='verse-selected'><b>{v_num}.</b> {text}</div>", unsafe_allow_html=True)
+                else:
+                    # 그 다음 절들
+                    st.button(
+                        label=display_label, 
+                        key=f"v_btn_{v_num}", 
+                        use_container_width=True,
+                        on_click=change_verse_only,
+                        args=(v_num,)
+                    )
         else:
             st.error("데이터 없음")
 
-    # [오른쪽] 관주
+    # [오른쪽] 관주 (스크롤 박스 유지)
     with col_ref:
         st.subheader("🔗 연결된 관주 (References)")
         st.caption(f"기준: {search_key}")
@@ -219,28 +222,3 @@ else:
                     )
             else:
                 st.info(f"💡 {search_key}에 대한 관주가 없습니다.")
-
-# [★수정된 자바스크립트]
-# 1. setTimeout(500): 0.5초 기다려서 화면이 다 그려진 뒤에 실행합니다.
-# 2. getElementsByClassName: ID 대신 '파란 박스(verse-selected)'를 직접 찾습니다.
-components.html(
-    """
-    <script>
-        setTimeout(function() {
-            try {
-                // 부모 창(Streamlit 앱)에서 'verse-selected' 클래스를 가진 요소를 찾음
-                var targets = window.parent.document.getElementsByClassName('verse-selected');
-                if (targets.length > 0) {
-                    var target = targets[0];
-                    // 화면 중앙으로 부드럽게 이동
-                    target.scrollIntoView({behavior: 'smooth', block: 'center'});
-                }
-            } catch(e) {
-                console.log("스크롤 이동 실패: 보안 정책상 접근이 제한될 수 있습니다.");
-            }
-        }, 500);
-    </script>
-    """,
-    height=0,
-    width=0
-)
