@@ -24,9 +24,8 @@ st.markdown("""
         text-align: left !important;
         color: #000000;
         display: block;
-        
-        /* [중요] 스크롤이 딱 멈췄을 때, 제목에 가리지 않게 위쪽 여백(쿠션)을 줍니다 */
-        scroll-margin-top: 200px; 
+        /* 자동 스크롤 시 제목에 가리지 않게 여백 확보 */
+        scroll-margin-top: 150px; 
     }
     
     /* [2] 버튼 스타일 (왼쪽 정렬) */
@@ -73,7 +72,6 @@ def load_data():
     if os.path.exists('bible_data.json'):
         with open('bible_data.json', 'r', encoding='utf-8') as f:
             bible_data = json.load(f)
-            
             # [수선] "눅" -> "누가복음"
             if "눅" in bible_data:
                 bible_data["누가복음"] = bible_data.pop("눅")
@@ -218,6 +216,7 @@ else:
             st.rerun()
 
     # === 메인 화면 ===
+    # 화면 비율 조정
     col_text, col_ref = st.columns([1, 1])
     current_b = st.session_state['current_book']
     current_c = st.session_state['current_chapter']
@@ -233,7 +232,7 @@ else:
             v_keys = list(verses.keys())
             v_keys.sort(key=lambda x: int(x))
 
-            # 1절부터 끝까지 다 보여줍니다.
+            # 1절부터 끝까지 보여줌
             for v_num in v_keys: 
                 raw_data = verses[v_num]
                 text = raw_data.get('text', str(raw_data)) if isinstance(raw_data, dict) else raw_data
@@ -255,60 +254,64 @@ else:
 
     # [오른쪽] 관주
     with col_ref:
+        # [★핵심] 높이 맞추기 로직
+        # 현재 선택된 절이 몇 번째 절인지 확인하고, 그만큼 위에 '빈 공간(Spacer)'을 만듭니다.
+        # 한 절의 대략적인 높이를 60px 정도로 계산합니다.
+        try:
+            current_v_idx = v_keys.index(current_v)
+            spacer_height = current_v_idx * 60  # 절 개수 * 60px 만큼 밀어내기
+        except:
+            spacer_height = 0
+            
+        # 빈 공간 삽입 (이것이 관주를 아래로 밀어줍니다)
+        st.markdown(f"<div style='min-height: {spacer_height}px;'></div>", unsafe_allow_html=True)
+
         st.subheader("🔗 연결된 관주 (References)")
         st.caption(f"기준: {search_key}")
         found_ref_links = refs_data.get(search_key, [])
         
-        with st.container(height=700):
-            if found_ref_links:
-                for idx, link in enumerate(found_ref_links):
-                    preview_text = ""
-                    try:
-                        parts = link.split(':')
-                        raw_verse = parts[1].strip()
-                        raw_book_chapter = parts[0].rsplit(' ', 1)
-                        b = raw_book_chapter[0].strip()
-                        c = raw_book_chapter[1].strip()
-                        v = raw_verse 
-                        preview_text = find_text_safe(b, c, v)
-                    except: pass
+        if found_ref_links:
+            for idx, link in enumerate(found_ref_links):
+                preview_text = ""
+                try:
+                    parts = link.split(':')
+                    raw_verse = parts[1].strip()
+                    raw_book_chapter = parts[0].rsplit(' ', 1)
+                    b = raw_book_chapter[0].strip()
+                    c = raw_book_chapter[1].strip()
+                    v = raw_verse 
+                    preview_text = find_text_safe(b, c, v)
+                except: pass
 
-                    btn_label = f"🔗 {link}\n{preview_text}"
-                    st.button(
-                        btn_label, 
-                        key=f"ref_btn_{idx}", 
-                        use_container_width=True,
-                        on_click=go_to_verse,
-                        args=(link,)
-                    )
-            else:
-                st.info(f"💡 {search_key}에 대한 관주가 없습니다.")
+                btn_label = f"🔗 {link}\n{preview_text}"
+                st.button(
+                    btn_label, 
+                    key=f"ref_btn_{idx}", 
+                    use_container_width=True,
+                    on_click=go_to_verse,
+                    args=(link,)
+                )
+        else:
+            st.info(f"💡 {search_key}에 대한 관주가 없습니다.")
 
-# [★핵심] 집요한 스크롤 탐색기
-# 0.1초마다 파란 박스가 생겼는지 확인하고, 생기면 즉시 위로 올린 뒤 종료합니다.
-# 최대 20번(2초)까지 시도하므로 화면이 늦게 떠도 반드시 찾아냅니다.
+# [보너스] 집요한 자동 스크롤 (화면도 같이 내려가면 더 좋으니까요)
 components.html(
     """
     <script>
         var count = 0;
         var interval = setInterval(function() {
             try {
-                // 부모 창에서 'verse-selected' 클래스(파란 박스)를 찾음
                 var targets = window.parent.document.getElementsByClassName('verse-selected');
                 if (targets.length > 0) {
                     var target = targets[0];
-                    // 찾았다! 화면 맨 위(start)로 부드럽게 이동
-                    target.scrollIntoView({behavior: 'smooth', block: 'start'});
-                    // 임무 완수했으므로 감시 종료
+                    target.scrollIntoView({behavior: 'smooth', block: 'center'});
                     clearInterval(interval);
                 }
             } catch(e) { }
             
             count++;
-            if (count > 20) { // 2초(20번) 지나도 없으면 포기 (무한루프 방지)
-                clearInterval(interval);
-            }
-        }, 100); // 0.1초마다 확인
+            if (count > 20) clearInterval(interval);
+        }, 100);
     </script>
     """,
     height=0,
