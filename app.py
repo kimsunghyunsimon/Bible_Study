@@ -6,10 +6,10 @@ import re
 # 1. 페이지 설정
 st.set_page_config(layout="wide", page_title="Bible Study Tool")
 
-# 2. 스타일 정의
+# 2. 스타일 정의 (왼쪽 정렬 + 깔끔한 디자인)
 st.markdown("""
 <style>
-    /* [1] 선택된 절 (맨 위 고정) */
+    /* [1] 선택된 절 (파란색 박스) - 맨 위 고정됨 */
     .verse-selected { 
         background-color: #e3f2fd; 
         border-left: 5px solid #2196F3; 
@@ -60,7 +60,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. 데이터 로드 및 [★핵심 수정] 이름표 수선하기
+# 3. 데이터 로드 (이름표 수선 기능 포함)
 @st.cache_data
 def load_data():
     bible_data = {}
@@ -69,7 +69,7 @@ def load_data():
         with open('bible_data.json', 'r', encoding='utf-8') as f:
             bible_data = json.load(f)
             
-            # [수선 작업] "눅"이라고 되어 있으면 "누가복음"으로 고칩니다.
+            # [수선] "눅" -> "누가복음" 교체
             if "눅" in bible_data:
                 bible_data["누가복음"] = bible_data.pop("눅")
                 
@@ -81,7 +81,22 @@ def load_data():
 
 bible_data, refs_data = load_data()
 
-# 영어/약어 -> 한글 책 이름 변환기 (누가복음 'Luk' 포함)
+# [NEW] 성경 66권 정렬 기준표 (순서 지킴이)
+BIBLE_ORDER = [
+    # 구약
+    "창세기", "출애굽기", "레위기", "민수기", "신명기", "여호수아", "사사기", "룻기",
+    "사무엘상", "사무엘하", "열왕기상", "열왕기하", "역대상", "역대하", "에스라", "느헤미야",
+    "에스더", "욥기", "시편", "잠언", "전도서", "아가", "이사야", "예레미야", "예레미야애가",
+    "에스겔", "다니엘", "호세아", "요엘", "아모스", "오바댜", "요나", "미가", "나훔", "하박국",
+    "스바냐", "학개", "스가랴", "말라기",
+    # 신약
+    "마태복음", "마가복음", "누가복음", "요한복음", "사도행전", "로마서", "고린도전서", "고린도후서",
+    "갈라디아서", "에베소서", "빌립보서", "골로새서", "데살로니가전서", "데살로니가후서",
+    "디모데전서", "디모데후서", "디도서", "빌레몬서", "히브리서", "야고보서", "베드로전서",
+    "베드로후서", "요한일서", "요한이서", "요한삼서", "유다서", "요한계시록"
+]
+
+# 영어/약어 매핑
 book_map = {
     "Gen": "창세기", "Exo": "출애굽기", "Lev": "레위기", "Num": "민수기", "Deu": "신명기",
     "Jos": "여호수아", "Jdg": "사사기", "Rut": "룻기", "1Sa": "사무엘상", "2Sa": "사무엘하",
@@ -97,18 +112,12 @@ book_map = {
     "1Ti": "디모데전서", "2Ti": "디모데후서", "Tit": "디도서", "Phm": "빌레몬서", "Heb": "히브리서",
     "Jam": "야고보서", "1Pe": "베드로전서", "2Pe": "베드로후서", "1Jo": "요한일서", "2Jo": "요한이서",
     "3Jo": "요한삼서", "Jud": "유다서", "Rev": "요한계시록",
-    # 혹시 모를 한글 약어 처리
     "눅": "누가복음"
 }
 
-# 똑똑한 텍스트 찾기 함수
 def find_text_safe(book, chapter, verse):
     clean_book = book.strip()
-    # 영어면 한글로 변환
-    if clean_book in book_map:
-        clean_book = book_map[clean_book]
-    
-    # 절 번호 청소 (1-Zech -> 1)
+    if clean_book in book_map: clean_book = book_map[clean_book]
     clean_verse = re.split(r'[-a-zA-Z]', str(verse))[0].strip()
     
     try:
@@ -117,8 +126,7 @@ def find_text_safe(book, chapter, verse):
                 if str(clean_verse) in bible_data[clean_book][str(chapter)]:
                     raw = bible_data[clean_book][str(chapter)][str(clean_verse)]
                     return raw.get('text', str(raw)) if isinstance(raw, dict) else raw
-    except:
-        pass
+    except: pass
     return ""
 
 # 4. 기능 함수들
@@ -132,7 +140,7 @@ def go_to_verse(ref_string):
         
         temp = parts[0].rsplit(' ', 1)
         book_raw = temp[0].strip()
-        book_name = book_map.get(book_raw, book_raw) # 영문->한글 변환
+        book_name = book_map.get(book_raw, book_raw)
         
         chapter_num = temp[1].strip()
         
@@ -150,7 +158,7 @@ def change_verse_only(v_num):
 
 # 5. 초기값 설정
 if 'current_book' not in st.session_state:
-    st.session_state['current_book'] = list(bible_data.keys())[0] if bible_data else "창세기"
+    st.session_state['current_book'] = "창세기"
 if 'current_chapter' not in st.session_state:
     st.session_state['current_chapter'] = "1"
 if 'current_verse' not in st.session_state:
@@ -165,19 +173,29 @@ else:
     # === 사이드바 ===
     with st.sidebar:
         st.header("🔍 성경 찾기")
-        book_list = list(bible_data.keys())
         
-        # [안전장치] 현재 선택된 책이 리스트에 없으면(이름이 바뀐 경우) 첫번째 책으로
-        if st.session_state['current_book'] not in book_list:
-             # 만약 "눅"을 보고 있었다면 "누가복음"으로 자동 연결 시도
-            if st.session_state['current_book'] == "눅" and "누가복음" in book_list:
-                st.session_state['current_book'] = "누가복음"
-            else:
-                st.session_state['current_book'] = book_list[0]
+        # [핵심 수정] 성경 순서 강제 정렬
+        # 가지고 있는 데이터 중에서, BIBLE_ORDER 순서대로 목록을 다시 만듭니다.
+        raw_keys = list(bible_data.keys())
+        sorted_book_list = [b for b in BIBLE_ORDER if b in raw_keys]
+        
+        # 혹시 순서표에 없는 책이 있다면 맨 뒤에 붙여줍니다 (데이터 누락 방지)
+        for k in raw_keys:
+            if k not in sorted_book_list:
+                sorted_book_list.append(k)
 
-        try: b_idx = book_list.index(st.session_state['current_book'])
+        # 안전장치: 현재 보고 있는 책이 목록에 없으면(예: '눅' -> '누가복음' 변경 시)
+        if st.session_state['current_book'] not in sorted_book_list:
+             if st.session_state['current_book'] == "눅" and "누가복음" in sorted_book_list:
+                st.session_state['current_book'] = "누가복음"
+             elif sorted_book_list:
+                st.session_state['current_book'] = sorted_book_list[0]
+
+        # 인덱스 찾기
+        try: b_idx = sorted_book_list.index(st.session_state['current_book'])
         except: b_idx = 0
-        selected_book = st.selectbox("성경", book_list, index=b_idx, key='sb_book')
+            
+        selected_book = st.selectbox("성경", sorted_book_list, index=b_idx, key='sb_book')
         
         chapter_keys = list(bible_data[selected_book].keys())
         chapter_keys.sort(key=lambda x: int(x))
@@ -192,6 +210,7 @@ else:
         except: v_idx = 0
         selected_verse_num = st.selectbox("절", verse_keys, index=v_idx, key='sb_verse')
 
+        # 동기화 로직
         if selected_book != st.session_state['current_book']:
             st.session_state['current_book'] = selected_book
             st.session_state['current_chapter'] = "1"
@@ -221,6 +240,7 @@ else:
             v_keys = list(verses.keys())
             v_keys.sort(key=lambda x: int(x))
 
+            # 현재 절부터 끝까지
             try:
                 target_v_int = int(current_v)
                 display_keys = [k for k in v_keys if int(k) >= target_v_int]
@@ -230,7 +250,6 @@ else:
             for v_num in display_keys:
                 raw_data = verses[v_num]
                 text = raw_data.get('text', str(raw_data)) if isinstance(raw_data, dict) else raw_data
-
                 display_label = f"▶ {v_num}. {text}"
 
                 if v_num == current_v:
@@ -260,17 +279,13 @@ else:
                         parts = link.split(':')
                         raw_verse = parts[1].strip()
                         raw_book_chapter = parts[0].rsplit(' ', 1)
-                        
                         b = raw_book_chapter[0].strip()
                         c = raw_book_chapter[1].strip()
                         v = raw_verse 
-                        
                         preview_text = find_text_safe(b, c, v)
-                        
                     except: pass
 
                     btn_label = f"🔗 {link}\n{preview_text}"
-                    
                     st.button(
                         btn_label, 
                         key=f"ref_btn_{idx}", 
