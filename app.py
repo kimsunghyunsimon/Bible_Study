@@ -1,14 +1,15 @@
 import streamlit as st
 import json
 import os
+import re # [추가] 정규표현식 사용 (글자 청소용)
 
 # 1. 페이지 설정
 st.set_page_config(layout="wide", page_title="Bible Study Tool")
 
-# 2. 스타일 정의 (왼쪽 정렬 + 깔끔한 디자인)
+# 2. 스타일 정의
 st.markdown("""
 <style>
-    /* [1] 선택된 절 (파란색 박스) - 맨 위에 고정됨 */
+    /* [1] 선택된 절 (맨 위 고정) */
     .verse-selected { 
         background-color: #e3f2fd; 
         border-left: 5px solid #2196F3; 
@@ -74,15 +75,66 @@ def load_data():
 
 bible_data, refs_data = load_data()
 
+# === [NEW] 영어/약어 -> 한글 책 이름 변환기 ===
+# 관주 데이터에 영어가 섞여 있을 경우를 대비합니다.
+book_map = {
+    "Gen": "창세기", "Exo": "출애굽기", "Lev": "레위기", "Num": "민수기", "Deu": "신명기",
+    "Jos": "여호수아", "Jdg": "사사기", "Rut": "룻기", "1Sa": "사무엘상", "2Sa": "사무엘하",
+    "1Ki": "열왕기상", "2Ki": "열왕기하", "1Ch": "역대상", "2Ch": "역대하", "Ezr": "에스라",
+    "Neh": "느헤미야", "Est": "에스더", "Job": "욥기", "Psa": "시편", "Pro": "잠언",
+    "Ecc": "전도서", "Son": "아가", "Isa": "이사야", "Jer": "예레미야", "Lam": "예레미야애가",
+    "Eze": "에스겔", "Dan": "다니엘", "Hos": "호세아", "Joe": "요엘", "Amo": "아모스",
+    "Oba": "오바댜", "Jon": "요나", "Mic": "미가", "Nah": "나훔", "Hab": "하박국",
+    "Zep": "스바냐", "Hag": "학개", "Zec": "스가랴", "Zech": "스가랴", "Mal": "말라기",
+    "Mat": "마태복음", "Mar": "마가복음", "Luk": "누가복음", "Joh": "요한복음", "Act": "사도행전",
+    "Rom": "로마서", "1Co": "고린도전서", "2Co": "고린도후서", "Gal": "갈라디아서", "Eph": "에베소서",
+    "Phi": "빌립보서", "Col": "골로새서", "1Th": "데살로니가전서", "2Th": "데살로니가후서",
+    "1Ti": "디모데전서", "2Ti": "디모데후서", "Tit": "디도서", "Phm": "빌레몬서", "Heb": "히브리서",
+    "Jam": "야고보서", "1Pe": "베드로전서", "2Pe": "베드로후서", "1Jo": "요한일서", "2Jo": "요한이서",
+    "3Jo": "요한삼서", "Jud": "유다서", "Rev": "요한계시록"
+}
+
+# === [NEW] 똑똑한 텍스트 찾기 함수 ===
+def find_text_safe(book, chapter, verse):
+    # 1. 책 이름 보정 (영어가 들어오면 한글로 변환)
+    clean_book = book.strip()
+    if clean_book in book_map:
+        clean_book = book_map[clean_book]
+    
+    # 2. 절 번호 청소 (예: "1-Zech" -> "1")
+    # 숫자만 남기고 뒤에 붙은 영어/특수문자를 다 뗍니다.
+    clean_verse = re.split(r'[-a-zA-Z]', str(verse))[0].strip()
+    
+    # 3. 데이터 찾기 시도
+    try:
+        if clean_book in bible_data:
+            if str(chapter) in bible_data[clean_book]:
+                if str(clean_verse) in bible_data[clean_book][str(chapter)]:
+                    raw = bible_data[clean_book][str(chapter)][str(clean_verse)]
+                    return raw.get('text', str(raw)) if isinstance(raw, dict) else raw
+    except:
+        pass
+        
+    return "" # 못 찾으면 빈칸
+
 # 4. 기능 함수들
 def go_to_verse(ref_string):
     try:
         parts = ref_string.split(':')
         if len(parts) < 2: return
-        verse_num = parts[1].strip()
+        
+        # 여기서도 청소 기능을 사용해 안전하게 파싱
+        raw_verse = parts[1].strip()
+        verse_num = re.split(r'[-a-zA-Z]', raw_verse)[0].strip() # 1-Zech -> 1
+        
         temp = parts[0].rsplit(' ', 1)
-        book_name = temp[0].strip()
+        book_raw = temp[0].strip()
+        
+        # 책 이름이 영어면 한글로 변환
+        book_name = book_map.get(book_raw, book_raw)
+        
         chapter_num = temp[1].strip()
+        
         st.session_state['current_book'] = book_name
         st.session_state['current_chapter'] = chapter_num
         st.session_state['current_verse'] = verse_num
@@ -159,17 +211,13 @@ else:
             v_keys = list(verses.keys())
             v_keys.sort(key=lambda x: int(x))
 
-            # [핵심 로직 변경]
-            # 전체 구절을 다 보여주는 게 아니라,
-            # '현재 선택된 절(current_v)'보다 같거나 큰 절만 추려냅니다.
-            # 이렇게 하면 선택된 절이 무조건 리스트의 1번 타자가 됩니다.
+            # 현재 절부터 끝까지 필터링
             try:
                 target_v_int = int(current_v)
                 display_keys = [k for k in v_keys if int(k) >= target_v_int]
             except:
                 display_keys = v_keys
 
-            # 스크롤 박스 제거! (그냥 쭉 보여줍니다)
             for v_num in display_keys:
                 raw_data = verses[v_num]
                 text = raw_data.get('text', str(raw_data)) if isinstance(raw_data, dict) else raw_data
@@ -177,10 +225,8 @@ else:
                 display_label = f"▶ {v_num}. {text}"
 
                 if v_num == current_v:
-                    # 선택된 절 (맨 위에 나옴)
                     st.markdown(f"<div class='verse-selected'><b>{v_num}.</b> {text}</div>", unsafe_allow_html=True)
                 else:
-                    # 그 다음 절들
                     st.button(
                         label=display_label, 
                         key=f"v_btn_{v_num}", 
@@ -191,7 +237,7 @@ else:
         else:
             st.error("데이터 없음")
 
-    # [오른쪽] 관주 (스크롤 박스 유지)
+    # [오른쪽] 관주
     with col_ref:
         st.subheader("🔗 연결된 관주 (References)")
         st.caption(f"기준: {search_key}")
@@ -200,15 +246,21 @@ else:
         with st.container(height=700):
             if found_ref_links:
                 for idx, link in enumerate(found_ref_links):
+                    # [★핵심 수정] 안전하게 텍스트 찾기 함수 사용
                     preview_text = ""
                     try:
                         parts = link.split(':')
-                        v = parts[1].strip()
-                        temp = parts[0].rsplit(' ', 1)
-                        b = temp[0].strip()
-                        c = temp[1].strip()
-                        raw = bible_data[b][c][v]
-                        preview_text = raw.get('text', str(raw)) if isinstance(raw, dict) else raw
+                        # 파싱
+                        raw_verse = parts[1].strip()
+                        raw_book_chapter = parts[0].rsplit(' ', 1)
+                        
+                        b = raw_book_chapter[0].strip()
+                        c = raw_book_chapter[1].strip()
+                        v = raw_verse # find_text_safe 함수 안에서 청소함
+                        
+                        # 안전한 찾기 실행!
+                        preview_text = find_text_safe(b, c, v)
+                        
                     except: pass
 
                     btn_label = f"🔗 {link}\n{preview_text}"
