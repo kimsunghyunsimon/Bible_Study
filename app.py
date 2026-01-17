@@ -1,5 +1,5 @@
 import streamlit as st
-import streamlit.components.v1 as components # [필수] 화면 제어용
+import streamlit.components.v1 as components 
 import json
 import os
 import re
@@ -8,7 +8,7 @@ import time
 # 1. 페이지 설정
 st.set_page_config(layout="wide", page_title="Bible Study Tool")
 
-# 2. 스타일 정의 (왼쪽 정렬 + 깔끔한 디자인)
+# 2. 스타일 정의
 st.markdown("""
 <style>
     /* [1] 선택된 절 (파란색 박스) */
@@ -24,8 +24,10 @@ st.markdown("""
         text-align: left !important;
         color: #000000;
         display: block;
-        /* 스크롤될 때 위쪽 여백 확보 (제목에 가리지 않게) */
-        scroll-margin-top: 150px; 
+        
+        /* [핵심 수정] 스크롤이 'start'로 이동할 때, 
+           제목이나 메뉴바에 가려지지 않도록 위쪽에 투명 쿠션(180px)을 둡니다. */
+        scroll-margin-top: 180px; 
     }
     
     /* [2] 버튼 스타일 (왼쪽 정렬) */
@@ -64,7 +66,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. 데이터 로드 (이름표 수선 기능 포함)
+# 3. 데이터 로드
 @st.cache_data
 def load_data():
     bible_data = {}
@@ -73,7 +75,7 @@ def load_data():
         with open('bible_data.json', 'r', encoding='utf-8') as f:
             bible_data = json.load(f)
             
-            # [수선] "눅" -> "누가복음" 교체
+            # [수선] "눅" -> "누가복음"
             if "눅" in bible_data:
                 bible_data["누가복음"] = bible_data.pop("눅")
                 
@@ -85,7 +87,7 @@ def load_data():
 
 bible_data, refs_data = load_data()
 
-# 성경 66권 정렬 기준표
+# 성경 순서
 BIBLE_ORDER = [
     "창세기", "출애굽기", "레위기", "민수기", "신명기", "여호수아", "사사기", "룻기",
     "사무엘상", "사무엘하", "열왕기상", "열왕기하", "역대상", "역대하", "에스라", "느헤미야",
@@ -98,7 +100,7 @@ BIBLE_ORDER = [
     "베드로후서", "요한일서", "요한이서", "요한삼서", "유다서", "요한계시록"
 ]
 
-# 영어/약어 매핑
+# 영문 약어 매핑
 book_map = {
     "Gen": "창세기", "Exo": "출애굽기", "Lev": "레위기", "Num": "민수기", "Deu": "신명기",
     "Jos": "여호수아", "Jdg": "사사기", "Rut": "룻기", "1Sa": "사무엘상", "2Sa": "사무엘하",
@@ -131,7 +133,6 @@ def find_text_safe(book, chapter, verse):
     except: pass
     return ""
 
-# 4. 기능 함수들
 def go_to_verse(ref_string):
     try:
         parts = ref_string.split(':')
@@ -158,13 +159,9 @@ def change_verse_only(v_num):
     st.session_state['current_verse'] = v_num
     st.session_state['sb_verse'] = v_num
 
-# 5. 초기값 설정
-if 'current_book' not in st.session_state:
-    st.session_state['current_book'] = "창세기"
-if 'current_chapter' not in st.session_state:
-    st.session_state['current_chapter'] = "1"
-if 'current_verse' not in st.session_state:
-    st.session_state['current_verse'] = "1"
+if 'current_book' not in st.session_state: st.session_state['current_book'] = "창세기"
+if 'current_chapter' not in st.session_state: st.session_state['current_chapter'] = "1"
+if 'current_verse' not in st.session_state: st.session_state['current_verse'] = "1"
 
 # === 제목 및 설명 ===
 st.title("📖 성경 관주 연구 (Deep References)")
@@ -178,7 +175,6 @@ else:
     with st.sidebar:
         st.header("🔍 성경 찾기")
         
-        # 성경 순서 정렬
         raw_keys = list(bible_data.keys())
         sorted_book_list = [b for b in BIBLE_ORDER if b in raw_keys]
         for k in raw_keys:
@@ -208,7 +204,6 @@ else:
         except: v_idx = 0
         selected_verse_num = st.selectbox("절", verse_keys, index=v_idx, key='sb_verse')
 
-        # 동기화 로직
         if selected_book != st.session_state['current_book']:
             st.session_state['current_book'] = selected_book
             st.session_state['current_chapter'] = "1"
@@ -238,16 +233,14 @@ else:
             v_keys = list(verses.keys())
             v_keys.sort(key=lambda x: int(x))
 
-            # [수정] 필터링 제거! 모든 절을 다 보여줍니다 (그래야 위로 스크롤 가능)
-            # display_keys = [k for k in v_keys if int(k) >= target_v_int]  <-- 삭제
-            
-            for v_num in v_keys: # 모든 절 표시
+            # 1절부터 끝까지 다 보여줍니다.
+            for v_num in v_keys: 
                 raw_data = verses[v_num]
                 text = raw_data.get('text', str(raw_data)) if isinstance(raw_data, dict) else raw_data
                 display_label = f"▶ {v_num}. {text}"
 
                 if v_num == current_v:
-                    # 'verse-selected' 클래스를 붙여서 JS가 찾을 수 있게 함
+                    # 선택된 절 (ID 부여)
                     st.markdown(f"<div class='verse-selected'><b>{v_num}.</b> {text}</div>", unsafe_allow_html=True)
                 else:
                     st.button(
@@ -291,24 +284,19 @@ else:
             else:
                 st.info(f"💡 {search_key}에 대한 관주가 없습니다.")
 
-# [★핵심] 자동 스크롤 스크립트 재투입
-# 전체 절을 다 보여주되, 선택된 절(verse-selected)을 찾아서 화면 중앙으로 이동시킵니다.
+# [★핵심] 자동 스크롤: 화면 중앙(center)이 아니라 상단(start)으로 이동!
 components.html(
     """
     <script>
-        // 0.5초 뒤에 실행 (화면이 다 그려진 후)
         setTimeout(function() {
             try {
-                // 부모 창에서 'verse-selected' 클래스(파란 박스)를 찾음
                 var targets = window.parent.document.getElementsByClassName('verse-selected');
                 if (targets.length > 0) {
                     var target = targets[0];
-                    // 부드럽게 화면 중앙/상단으로 이동
-                    target.scrollIntoView({behavior: 'smooth', block: 'center'});
+                    // block: 'start' -> 요소를 화면 맨 꼭대기에 맞춤
+                    target.scrollIntoView({behavior: 'smooth', block: 'start'});
                 }
-            } catch(e) {
-                console.log("스크롤 이동 실패");
-            }
+            } catch(e) { }
         }, 500);
     </script>
     """,
