@@ -164,7 +164,9 @@ if 'current_chapter' not in st.session_state:
 if 'current_verse' not in st.session_state:
     st.session_state['current_verse'] = "1"
 
+# === [수정] 제목 및 설명 추가 ===
 st.title("📖 성경 관주 연구 (Deep References)")
+st.markdown("##### : 개역한글과 50만개 관주의 TSK(Treasurey of Scripture Knowledge)를 연결하였습니다.")
 st.markdown("---")
 
 if not bible_data:
@@ -174,24 +176,20 @@ else:
     with st.sidebar:
         st.header("🔍 성경 찾기")
         
-        # [핵심 수정] 성경 순서 강제 정렬
-        # 가지고 있는 데이터 중에서, BIBLE_ORDER 순서대로 목록을 다시 만듭니다.
+        # [핵심] 성경 순서 정렬
         raw_keys = list(bible_data.keys())
         sorted_book_list = [b for b in BIBLE_ORDER if b in raw_keys]
         
-        # 혹시 순서표에 없는 책이 있다면 맨 뒤에 붙여줍니다 (데이터 누락 방지)
         for k in raw_keys:
             if k not in sorted_book_list:
                 sorted_book_list.append(k)
 
-        # 안전장치: 현재 보고 있는 책이 목록에 없으면(예: '눅' -> '누가복음' 변경 시)
         if st.session_state['current_book'] not in sorted_book_list:
              if st.session_state['current_book'] == "눅" and "누가복음" in sorted_book_list:
                 st.session_state['current_book'] = "누가복음"
              elif sorted_book_list:
                 st.session_state['current_book'] = sorted_book_list[0]
 
-        # 인덱스 찾기
         try: b_idx = sorted_book_list.index(st.session_state['current_book'])
         except: b_idx = 0
             
@@ -240,7 +238,6 @@ else:
             v_keys = list(verses.keys())
             v_keys.sort(key=lambda x: int(x))
 
-            # 현재 절부터 끝까지
             try:
                 target_v_int = int(current_v)
                 display_keys = [k for k in v_keys if int(k) >= target_v_int]
