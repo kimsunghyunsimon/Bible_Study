@@ -1,7 +1,7 @@
 import streamlit as st
 import json
 import os
-import re # [추가] 정규표현식 사용 (글자 청소용)
+import re
 
 # 1. 페이지 설정
 st.set_page_config(layout="wide", page_title="Bible Study Tool")
@@ -60,7 +60,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. 데이터 로드
+# 3. 데이터 로드 및 [★핵심 수정] 이름표 수선하기
 @st.cache_data
 def load_data():
     bible_data = {}
@@ -68,15 +68,20 @@ def load_data():
     if os.path.exists('bible_data.json'):
         with open('bible_data.json', 'r', encoding='utf-8') as f:
             bible_data = json.load(f)
+            
+            # [수선 작업] "눅"이라고 되어 있으면 "누가복음"으로 고칩니다.
+            if "눅" in bible_data:
+                bible_data["누가복음"] = bible_data.pop("눅")
+                
     if os.path.exists('bible_refs.json'):
         with open('bible_refs.json', 'r', encoding='utf-8') as f:
             refs_data = json.load(f)
+            
     return bible_data, refs_data
 
 bible_data, refs_data = load_data()
 
-# === [NEW] 영어/약어 -> 한글 책 이름 변환기 ===
-# 관주 데이터에 영어가 섞여 있을 경우를 대비합니다.
+# 영어/약어 -> 한글 책 이름 변환기 (누가복음 'Luk' 포함)
 book_map = {
     "Gen": "창세기", "Exo": "출애굽기", "Lev": "레위기", "Num": "민수기", "Deu": "신명기",
     "Jos": "여호수아", "Jdg": "사사기", "Rut": "룻기", "1Sa": "사무엘상", "2Sa": "사무엘하",
@@ -86,26 +91,26 @@ book_map = {
     "Eze": "에스겔", "Dan": "다니엘", "Hos": "호세아", "Joe": "요엘", "Amo": "아모스",
     "Oba": "오바댜", "Jon": "요나", "Mic": "미가", "Nah": "나훔", "Hab": "하박국",
     "Zep": "스바냐", "Hag": "학개", "Zec": "스가랴", "Zech": "스가랴", "Mal": "말라기",
-    "Mat": "마태복음", "Mar": "마가복음", "Luk": "누가복음", "Joh": "요한복음", "Act": "사도행전",
+    "Mat": "마태복음", "Mar": "마가복음", "Luk": "누가복음", "Luke": "누가복음", "Joh": "요한복음", "Act": "사도행전",
     "Rom": "로마서", "1Co": "고린도전서", "2Co": "고린도후서", "Gal": "갈라디아서", "Eph": "에베소서",
     "Phi": "빌립보서", "Col": "골로새서", "1Th": "데살로니가전서", "2Th": "데살로니가후서",
     "1Ti": "디모데전서", "2Ti": "디모데후서", "Tit": "디도서", "Phm": "빌레몬서", "Heb": "히브리서",
     "Jam": "야고보서", "1Pe": "베드로전서", "2Pe": "베드로후서", "1Jo": "요한일서", "2Jo": "요한이서",
-    "3Jo": "요한삼서", "Jud": "유다서", "Rev": "요한계시록"
+    "3Jo": "요한삼서", "Jud": "유다서", "Rev": "요한계시록",
+    # 혹시 모를 한글 약어 처리
+    "눅": "누가복음"
 }
 
-# === [NEW] 똑똑한 텍스트 찾기 함수 ===
+# 똑똑한 텍스트 찾기 함수
 def find_text_safe(book, chapter, verse):
-    # 1. 책 이름 보정 (영어가 들어오면 한글로 변환)
     clean_book = book.strip()
+    # 영어면 한글로 변환
     if clean_book in book_map:
         clean_book = book_map[clean_book]
     
-    # 2. 절 번호 청소 (예: "1-Zech" -> "1")
-    # 숫자만 남기고 뒤에 붙은 영어/특수문자를 다 뗍니다.
+    # 절 번호 청소 (1-Zech -> 1)
     clean_verse = re.split(r'[-a-zA-Z]', str(verse))[0].strip()
     
-    # 3. 데이터 찾기 시도
     try:
         if clean_book in bible_data:
             if str(chapter) in bible_data[clean_book]:
@@ -114,8 +119,7 @@ def find_text_safe(book, chapter, verse):
                     return raw.get('text', str(raw)) if isinstance(raw, dict) else raw
     except:
         pass
-        
-    return "" # 못 찾으면 빈칸
+    return ""
 
 # 4. 기능 함수들
 def go_to_verse(ref_string):
@@ -123,15 +127,12 @@ def go_to_verse(ref_string):
         parts = ref_string.split(':')
         if len(parts) < 2: return
         
-        # 여기서도 청소 기능을 사용해 안전하게 파싱
         raw_verse = parts[1].strip()
-        verse_num = re.split(r'[-a-zA-Z]', raw_verse)[0].strip() # 1-Zech -> 1
+        verse_num = re.split(r'[-a-zA-Z]', raw_verse)[0].strip()
         
         temp = parts[0].rsplit(' ', 1)
         book_raw = temp[0].strip()
-        
-        # 책 이름이 영어면 한글로 변환
-        book_name = book_map.get(book_raw, book_raw)
+        book_name = book_map.get(book_raw, book_raw) # 영문->한글 변환
         
         chapter_num = temp[1].strip()
         
@@ -165,6 +166,15 @@ else:
     with st.sidebar:
         st.header("🔍 성경 찾기")
         book_list = list(bible_data.keys())
+        
+        # [안전장치] 현재 선택된 책이 리스트에 없으면(이름이 바뀐 경우) 첫번째 책으로
+        if st.session_state['current_book'] not in book_list:
+             # 만약 "눅"을 보고 있었다면 "누가복음"으로 자동 연결 시도
+            if st.session_state['current_book'] == "눅" and "누가복음" in book_list:
+                st.session_state['current_book'] = "누가복음"
+            else:
+                st.session_state['current_book'] = book_list[0]
+
         try: b_idx = book_list.index(st.session_state['current_book'])
         except: b_idx = 0
         selected_book = st.selectbox("성경", book_list, index=b_idx, key='sb_book')
@@ -211,7 +221,6 @@ else:
             v_keys = list(verses.keys())
             v_keys.sort(key=lambda x: int(x))
 
-            # 현재 절부터 끝까지 필터링
             try:
                 target_v_int = int(current_v)
                 display_keys = [k for k in v_keys if int(k) >= target_v_int]
@@ -246,19 +255,16 @@ else:
         with st.container(height=700):
             if found_ref_links:
                 for idx, link in enumerate(found_ref_links):
-                    # [★핵심 수정] 안전하게 텍스트 찾기 함수 사용
                     preview_text = ""
                     try:
                         parts = link.split(':')
-                        # 파싱
                         raw_verse = parts[1].strip()
                         raw_book_chapter = parts[0].rsplit(' ', 1)
                         
                         b = raw_book_chapter[0].strip()
                         c = raw_book_chapter[1].strip()
-                        v = raw_verse # find_text_safe 함수 안에서 청소함
+                        v = raw_verse 
                         
-                        # 안전한 찾기 실행!
                         preview_text = find_text_safe(b, c, v)
                         
                     except: pass
