@@ -25,9 +25,8 @@ st.markdown("""
         color: #000000;
         display: block;
         
-        /* [핵심 수정] 스크롤이 'start'로 이동할 때, 
-           제목이나 메뉴바에 가려지지 않도록 위쪽에 투명 쿠션(180px)을 둡니다. */
-        scroll-margin-top: 180px; 
+        /* [중요] 스크롤이 딱 멈췄을 때, 제목에 가리지 않게 위쪽 여백(쿠션)을 줍니다 */
+        scroll-margin-top: 200px; 
     }
     
     /* [2] 버튼 스타일 (왼쪽 정렬) */
@@ -204,6 +203,7 @@ else:
         except: v_idx = 0
         selected_verse_num = st.selectbox("절", verse_keys, index=v_idx, key='sb_verse')
 
+        # 동기화 로직
         if selected_book != st.session_state['current_book']:
             st.session_state['current_book'] = selected_book
             st.session_state['current_chapter'] = "1"
@@ -284,20 +284,31 @@ else:
             else:
                 st.info(f"💡 {search_key}에 대한 관주가 없습니다.")
 
-# [★핵심] 자동 스크롤: 화면 중앙(center)이 아니라 상단(start)으로 이동!
+# [★핵심] 집요한 스크롤 탐색기
+# 0.1초마다 파란 박스가 생겼는지 확인하고, 생기면 즉시 위로 올린 뒤 종료합니다.
+# 최대 20번(2초)까지 시도하므로 화면이 늦게 떠도 반드시 찾아냅니다.
 components.html(
     """
     <script>
-        setTimeout(function() {
+        var count = 0;
+        var interval = setInterval(function() {
             try {
+                // 부모 창에서 'verse-selected' 클래스(파란 박스)를 찾음
                 var targets = window.parent.document.getElementsByClassName('verse-selected');
                 if (targets.length > 0) {
                     var target = targets[0];
-                    // block: 'start' -> 요소를 화면 맨 꼭대기에 맞춤
+                    // 찾았다! 화면 맨 위(start)로 부드럽게 이동
                     target.scrollIntoView({behavior: 'smooth', block: 'start'});
+                    // 임무 완수했으므로 감시 종료
+                    clearInterval(interval);
                 }
             } catch(e) { }
-        }, 500);
+            
+            count++;
+            if (count > 20) { // 2초(20번) 지나도 없으면 포기 (무한루프 방지)
+                clearInterval(interval);
+            }
+        }, 100); // 0.1초마다 확인
     </script>
     """,
     height=0,
