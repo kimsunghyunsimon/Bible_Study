@@ -1,7 +1,9 @@
 import streamlit as st
+import streamlit.components.v1 as components # [필수] 화면 제어용
 import json
 import os
 import re
+import time
 
 # 1. 페이지 설정
 st.set_page_config(layout="wide", page_title="Bible Study Tool")
@@ -9,7 +11,7 @@ st.set_page_config(layout="wide", page_title="Bible Study Tool")
 # 2. 스타일 정의 (왼쪽 정렬 + 깔끔한 디자인)
 st.markdown("""
 <style>
-    /* [1] 선택된 절 (파란색 박스) - 맨 위 고정됨 */
+    /* [1] 선택된 절 (파란색 박스) */
     .verse-selected { 
         background-color: #e3f2fd; 
         border-left: 5px solid #2196F3; 
@@ -22,6 +24,8 @@ st.markdown("""
         text-align: left !important;
         color: #000000;
         display: block;
+        /* 스크롤될 때 위쪽 여백 확보 (제목에 가리지 않게) */
+        scroll-margin-top: 150px; 
     }
     
     /* [2] 버튼 스타일 (왼쪽 정렬) */
@@ -81,15 +85,13 @@ def load_data():
 
 bible_data, refs_data = load_data()
 
-# [NEW] 성경 66권 정렬 기준표 (순서 지킴이)
+# 성경 66권 정렬 기준표
 BIBLE_ORDER = [
-    # 구약
     "창세기", "출애굽기", "레위기", "민수기", "신명기", "여호수아", "사사기", "룻기",
     "사무엘상", "사무엘하", "열왕기상", "열왕기하", "역대상", "역대하", "에스라", "느헤미야",
     "에스더", "욥기", "시편", "잠언", "전도서", "아가", "이사야", "예레미야", "예레미야애가",
     "에스겔", "다니엘", "호세아", "요엘", "아모스", "오바댜", "요나", "미가", "나훔", "하박국",
     "스바냐", "학개", "스가랴", "말라기",
-    # 신약
     "마태복음", "마가복음", "누가복음", "요한복음", "사도행전", "로마서", "고린도전서", "고린도후서",
     "갈라디아서", "에베소서", "빌립보서", "골로새서", "데살로니가전서", "데살로니가후서",
     "디모데전서", "디모데후서", "디도서", "빌레몬서", "히브리서", "야고보서", "베드로전서",
@@ -164,7 +166,7 @@ if 'current_chapter' not in st.session_state:
 if 'current_verse' not in st.session_state:
     st.session_state['current_verse'] = "1"
 
-# === [수정] 제목 및 설명 추가 ===
+# === 제목 및 설명 ===
 st.title("📖 성경 관주 연구 (Deep References)")
 st.markdown("##### : 개역한글과 50만개 관주의 TSK(Treasurey of Scripture Knowledge)를 연결하였습니다.")
 st.markdown("---")
@@ -176,13 +178,11 @@ else:
     with st.sidebar:
         st.header("🔍 성경 찾기")
         
-        # [핵심] 성경 순서 정렬
+        # 성경 순서 정렬
         raw_keys = list(bible_data.keys())
         sorted_book_list = [b for b in BIBLE_ORDER if b in raw_keys]
-        
         for k in raw_keys:
-            if k not in sorted_book_list:
-                sorted_book_list.append(k)
+            if k not in sorted_book_list: sorted_book_list.append(k)
 
         if st.session_state['current_book'] not in sorted_book_list:
              if st.session_state['current_book'] == "눅" and "누가복음" in sorted_book_list:
@@ -238,18 +238,16 @@ else:
             v_keys = list(verses.keys())
             v_keys.sort(key=lambda x: int(x))
 
-            try:
-                target_v_int = int(current_v)
-                display_keys = [k for k in v_keys if int(k) >= target_v_int]
-            except:
-                display_keys = v_keys
-
-            for v_num in display_keys:
+            # [수정] 필터링 제거! 모든 절을 다 보여줍니다 (그래야 위로 스크롤 가능)
+            # display_keys = [k for k in v_keys if int(k) >= target_v_int]  <-- 삭제
+            
+            for v_num in v_keys: # 모든 절 표시
                 raw_data = verses[v_num]
                 text = raw_data.get('text', str(raw_data)) if isinstance(raw_data, dict) else raw_data
                 display_label = f"▶ {v_num}. {text}"
 
                 if v_num == current_v:
+                    # 'verse-selected' 클래스를 붙여서 JS가 찾을 수 있게 함
                     st.markdown(f"<div class='verse-selected'><b>{v_num}.</b> {text}</div>", unsafe_allow_html=True)
                 else:
                     st.button(
@@ -292,3 +290,28 @@ else:
                     )
             else:
                 st.info(f"💡 {search_key}에 대한 관주가 없습니다.")
+
+# [★핵심] 자동 스크롤 스크립트 재투입
+# 전체 절을 다 보여주되, 선택된 절(verse-selected)을 찾아서 화면 중앙으로 이동시킵니다.
+components.html(
+    """
+    <script>
+        // 0.5초 뒤에 실행 (화면이 다 그려진 후)
+        setTimeout(function() {
+            try {
+                // 부모 창에서 'verse-selected' 클래스(파란 박스)를 찾음
+                var targets = window.parent.document.getElementsByClassName('verse-selected');
+                if (targets.length > 0) {
+                    var target = targets[0];
+                    // 부드럽게 화면 중앙/상단으로 이동
+                    target.scrollIntoView({behavior: 'smooth', block: 'center'});
+                }
+            } catch(e) {
+                console.log("스크롤 이동 실패");
+            }
+        }, 500);
+    </script>
+    """,
+    height=0,
+    width=0
+)
